@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp } from "lucide-react"
+import { TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Sparkles } from "lucide-react"
 import { Scenario } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
@@ -64,7 +64,7 @@ export function ScenarioCard({ scenario, type }: ScenarioCardProps) {
         "group relative h-full rounded-xl border border-finsim-border bg-finsim-surface overflow-hidden",
         "hover:shadow-lg hover:-translate-y-1 transition-all duration-300",
         "border-l-4",
-        "min-h-[320px] md:min-h-[360px]",
+        "min-h-[360px] md:min-h-[420px]",
         type === "best_case" && "border-l-emerald-500",
         type === "worst_case" && "border-l-red-500",
         type === "realistic_case" && "border-l-blue-500"
@@ -103,6 +103,17 @@ export function ScenarioCard({ scenario, type }: ScenarioCardProps) {
             </p>
           </div>
         </div>
+
+        {/* AI Summary - Full text, no truncation */}
+        {scenario.ai_summary && (
+          <div className="space-y-1">
+            <div className="flex items-center gap-1.5">
+              <Sparkles className="h-3 w-3 text-finsim-primary flex-shrink-0" />
+              <p className="text-[9px] font-semibold text-finsim-textSecondary uppercase tracking-wider">KI-Analyse</p>
+            </div>
+            <p className="text-[11px] text-finsim-textMain leading-snug">{scenario.ai_summary}</p>
+          </div>
+        )}
 
         {/* Risk Factors - Compact */}
         {scenario.risk_factors.length > 0 && (
