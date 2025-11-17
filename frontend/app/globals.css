@@ -128,3 +128,22 @@
   background: hsl(220, 13%, 75%);
 }
 
+/* Custom scrollbar for LLM text areas */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: hsl(220, 13%, 96%);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: hsl(220, 13%, 80%);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: hsl(220, 13%, 70%);
+}
+

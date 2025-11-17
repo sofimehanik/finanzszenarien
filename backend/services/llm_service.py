@@ -44,7 +44,8 @@ class LLMService:
             if not api_key:
                 raise ValueError("GEMINI_API_KEY nicht gesetzt")
             genai.configure(api_key=api_key)
-            self.model = genai.GenerativeModel('gemini-pro')
+            # Используем gemini-2.0-flash (доступная модель из списка)
+            self.model = genai.GenerativeModel('models/gemini-2.0-flash')
         else:
             raise ValueError(f"Unbekannter Provider: {self.provider}")
     
@@ -72,12 +73,16 @@ class LLMService:
                         {"role": "user", "content": prompt}
                     ],
                     temperature=0.7,
-                    max_tokens=500
+                    max_tokens=300  # Reduziert für Szenario-Zusammenfassungen (weniger wichtig)
                 )
                 return response.choices[0].message.content.strip()
             else:  # Gemini
                 full_prompt = f"{self._get_system_prompt()}\n\n{prompt}"
-                response = self.model.generate_content(full_prompt)
+                generation_config = genai.types.GenerationConfig(
+                    max_output_tokens=300,  # Reduziert für Szenario-Zusammenfassungen
+                    temperature=0.7
+                )
+                response = self.model.generate_content(full_prompt, generation_config=generation_config)
                 return response.text.strip()
         except Exception as e:
             # Fallback bei API-Fehler
@@ -107,15 +112,42 @@ class LLMService:
                         {"role": "user", "content": prompt}
                     ],
                     temperature=0.7,
-                    max_tokens=2000
+                    max_tokens=4000  # Erhöht für längere, detailliertere Analysen
                 )
-                return response.choices[0].message.content.strip()
+                result = response.choices[0].message.content.strip()
+                print(f"📊 Plausibilitätsanalyse erhalten: {len(result)} Zeichen")
+                if not result or len(result) < 50:
+                    print(f"⚠️ Plausibilitätsanalyse zu kurz oder leer: {len(result) if result else 0} Zeichen (Minimum: 50)")
+                    print(f"📝 Inhalt: {result[:200] if result else 'LEER'}")
+                    # Zu kurze Antwort = None zurückgeben, nicht fallback
+                    return None
+                print(f"✅ Plausibilitätsanalyse gültig: {len(result)} Zeichen")
+                return result
             else:  # Gemini
                 full_prompt = f"{self._get_system_prompt()}\n\n{prompt}"
-                response = self.model.generate_content(full_prompt)
-                return response.text.strip()
+                generation_config = genai.types.GenerationConfig(
+                    max_output_tokens=4000,  # Erhöht für längere Analysen
+                    temperature=0.7
+                )
+                response = self.model.generate_content(full_prompt, generation_config=generation_config)
+                result = response.text.strip() if response.text else ""
+                print(f"📊 Plausibilitätsanalyse erhalten (Gemini): {len(result)} Zeichen")
+                if not result or len(result) < 50:
+                    print(f"⚠️ Plausibilitätsanalyse zu kurz oder leer: {len(result) if result else 0} Zeichen (Minimum: 50)")
+                    print(f"📝 Inhalt: {result[:200] if result else 'LEER'}")
+                    # Zu kurze Antwort = None zurückgeben, nicht fallback
+                    return None
+                print(f"✅ Plausibilitätsanalyse gültig: {len(result)} Zeichen")
+                return result
         except Exception as e:
-            return self._generate_fallback_plausibility(scenarios)
+            error_msg = str(e)
+            print(f"❌ Fehler bei Plausibilitätsanalyse: {error_msg}")
+            # Bei API-Fehlern (z.B. 429 Quota) nicht fallback zurückgeben, sondern None
+            # damit frontend weiß, dass LLM nicht verfügbar war
+            if "429" in error_msg or "quota" in error_msg.lower() or "insufficient_quota" in error_msg.lower():
+                print("⚠️ API-Quota überschritten - keine LLM-Analyse verfügbar")
+                return None  # None statt fallback, damit frontend fallback anzeigen kann
+            return None  # Bei anderen Fehlern auch None zurückgeben
     
     def generate_tips(self, finance_data: ParsedFinanceData, user_goal: Optional[str] = None) -> str:
         """
@@ -138,15 +170,42 @@ class LLMService:
                         {"role": "user", "content": prompt}
                     ],
                     temperature=0.8,
-                    max_tokens=1800
+                    max_tokens=3500  # Erhöht für mehr detaillierte Tipps
                 )
-                return response.choices[0].message.content.strip()
+                result = response.choices[0].message.content.strip()
+                print(f"📊 Tipps erhalten: {len(result)} Zeichen")
+                if not result or len(result) < 50:
+                    print(f"⚠️ Tipps zu kurz oder leer: {len(result) if result else 0} Zeichen (Minimum: 50)")
+                    print(f"📝 Inhalt: {result[:200] if result else 'LEER'}")
+                    # Zu kurze Antwort = None zurückgeben, nicht fallback
+                    return None
+                print(f"✅ Tipps gültig: {len(result)} Zeichen")
+                return result
             else:  # Gemini
                 full_prompt = f"{self._get_system_prompt()}\n\n{prompt}"
-                response = self.model.generate_content(full_prompt)
-                return response.text.strip()
+                generation_config = genai.types.GenerationConfig(
+                    max_output_tokens=3500,  # Erhöht für mehr detaillierte Tipps
+                    temperature=0.8
+                )
+                response = self.model.generate_content(full_prompt, generation_config=generation_config)
+                result = response.text.strip() if response.text else ""
+                print(f"📊 Tipps erhalten (Gemini): {len(result)} Zeichen")
+                if not result or len(result) < 50:
+                    print(f"⚠️ Tipps zu kurz oder leer: {len(result) if result else 0} Zeichen (Minimum: 50)")
+                    print(f"📝 Inhalt: {result[:200] if result else 'LEER'}")
+                    # Zu kurze Antwort = None zurückgeben, nicht fallback
+                    return None
+                print(f"✅ Tipps gültig: {len(result)} Zeichen")
+                return result
         except Exception as e:
-            return self._generate_fallback_tips(finance_data)
+            error_msg = str(e)
+            print(f"❌ Fehler bei Tipps-Generierung: {error_msg}")
+            # Bei API-Fehlern (z.B. 429 Quota) nicht fallback zurückgeben, sondern None
+            # damit frontend weiß, dass LLM nicht verfügbar war
+            if "429" in error_msg or "quota" in error_msg.lower() or "insufficient_quota" in error_msg.lower():
+                print("⚠️ API-Quota überschritten - keine LLM-Tipps verfügbar")
+                return None  # None statt fallback, damit frontend fallback anzeigen kann
+            return None  # Bei anderen Fehlern auch None zurückgeben
     
     def _get_system_prompt(self) -> str:
         """System-Prompt für konsistente Ausgaben"""

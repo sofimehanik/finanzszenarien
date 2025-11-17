@@ -124,33 +124,77 @@ async def analyze_finances(
         plausibility_analysis = None
         tips = None
         
+        print(f"🔍 LLM Service Status: {'verfügbar' if llm_service else 'nicht verfügbar'}")
+        
         if llm_service:
+            print("✅ LLM Service verfügbar, starte Analysen...")
             try:
-                print("🤖 Starte LLM-Analysen...")
-                # Zusammenfassungen für jedes Szenario
-                for key, scenario in scenarios.items():
-                    print(f"  - Generiere Zusammenfassung für {key}...")
-                    scenario_summaries[key] = llm_service.generate_scenario_summary(
-                        scenario, finance_data, user_goal
+                print("🤖 Starte LLM-Analysen (parallel)...")
+                import concurrent.futures
+                
+                # Parallele Ausführung aller LLM-Anfragen für bessere Performance
+                with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+                    # Alle Anfragen parallel starten
+                    futures = {}
+                    
+                    # Zusammenfassungen für jedes Szenario (kann parallel laufen)
+                    for key, scenario in scenarios.items():
+                        print(f"  - Starte Zusammenfassung für {key}...")
+                        futures[f'summary_{key}'] = executor.submit(
+                            llm_service.generate_scenario_summary,
+                            scenario, finance_data, user_goal
+                        )
+                    
+                    # Plausibilitätsanalyse
+                    print("  - Starte Plausibilitätsanalyse...")
+                    futures['plausibility'] = executor.submit(
+                        llm_service.generate_plausibility_analysis,
+                        scenarios, finance_data, user_goal
                     )
+                    
+                    # Tipps
+                    print("  - Starte Tipps-Generierung...")
+                    futures['tips'] = executor.submit(
+                        llm_service.generate_tips,
+                        finance_data, user_goal
+                    )
+                    
+                    # Ergebnisse sammeln (warten auf alle)
+                    print("  - Warte auf alle LLM-Antworten...")
+                    for key, scenario in scenarios.items():
+                        scenario_summaries[key] = futures[f'summary_{key}'].result()
+                        print(f"  ✅ Zusammenfassung für {key} erhalten")
+                    
+                    plausibility_analysis = futures['plausibility'].result()
+                    if plausibility_analysis:
+                        print(f"  ✅ Plausibilitätsanalyse erhalten ({len(plausibility_analysis)} Zeichen)")
+                        print(f"  📝 Erste 100 Zeichen: {plausibility_analysis[:100]}...")
+                    else:
+                        print(f"  ⚠️ Plausibilitätsanalyse nicht verfügbar (LLM-Fehler oder Quota überschritten)")
+                    
+                    tips = futures['tips'].result()
+                    if tips:
+                        print(f"  ✅ Tipps erhalten ({len(tips)} Zeichen)")
+                        print(f"  📝 Erste 100 Zeichen: {tips[:100]}...")
+                    else:
+                        print(f"  ⚠️ Tipps nicht verfügbar (LLM-Fehler oder Quota überschritten)")
                 
-                # Plausibilitätsanalyse
-                print("  - Generiere Plausibilitätsanalyse...")
-                plausibility_analysis = llm_service.generate_plausibility_analysis(
-                    scenarios, finance_data, user_goal
-                )
-                
-                # Tipps
-                print("  - Generiere Tipps...")
-                tips = llm_service.generate_tips(finance_data, user_goal)
-                print("✅ LLM-Analysen abgeschlossen")
+                print("✅ Alle LLM-Analysen abgeschlossen")
             except Exception as e:
                 print(f"⚠️ LLM-Fehler (wird ignoriert): {str(e)}")
                 import traceback
                 traceback.print_exc()
+                # Stelle sicher, dass None-Werte gesetzt sind
+                if plausibility_analysis is None:
+                    plausibility_analysis = None
+                if tips is None:
+                    tips = None
         
         # Response zusammenstellen
         print("📦 Erstelle Response...")
+        print(f"🔍 Debug: plausibility_analysis = {plausibility_analysis is not None} ({len(plausibility_analysis) if plausibility_analysis else 0} Zeichen)")
+        print(f"🔍 Debug: tips = {tips is not None} ({len(tips) if tips else 0} Zeichen)")
+        
         response = {
             "success": True,
             "finance_data": {
@@ -194,8 +238,8 @@ async def analyze_finances(
                 for key, scenario in scenarios.items()
             },
             "ai_analysis": {
-                "plausibility": plausibility_analysis,
-                "tips": tips
+                "plausibility": plausibility_analysis if (plausibility_analysis and plausibility_analysis.strip()) else None,
+                "tips": tips if (tips and tips.strip()) else None
             },
             "errors": csv_parser.errors,
             "warnings": csv_parser.warnings

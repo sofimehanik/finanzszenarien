@@ -19,6 +19,73 @@ const EXAMPLE_PROMPTS = [
   "Ist mein Budget ausreichend für einen Umzug in eine größere Wohnung?",
 ]
 
+// Функция для очистки markdown форматирования и улучшения читаемости
+function cleanMarkdownText(text: string): string {
+  if (!text) return text
+  
+  return text
+    // Убираем жирный текст **text** -> text
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    // Убираем курсив *text* -> text (но не трогаем одиночные * в начале строки)
+    .replace(/\*([^*\n]+)\*/g, '$1')
+    // Убираем подчеркивание __text__ -> text
+    .replace(/__([^_]+)__/g, '$1')
+    // Убираем одинарное подчеркивание _text_ -> text
+    .replace(/_([^_\n]+)_/g, '$1')
+    // Убираем зачеркивание ~~text~~ -> text
+    .replace(/~~([^~]+)~~/g, '$1')
+    // Убираем код `text` -> text
+    .replace(/`([^`]+)`/g, '$1')
+    // Убираем ссылки [text](url) -> text
+    .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
+    // Убираем заголовки markdown # ## ### -> просто текст
+    .replace(/^#{1,6}\s+/gm, '')
+    // Очищаем множественные пробелы внутри строк (но сохраняем переносы строк)
+    .split('\n')
+    .map(line => line.replace(/[ \t]+/g, ' ').trim())
+    .join('\n')
+    .trim()
+}
+
+// Функция для форматирования текста с улучшенной структурой
+function formatLLMText(text: string) {
+  if (!text) return []
+  
+  // Сначала очищаем markdown
+  let cleaned = cleanMarkdownText(text)
+  
+  // Разбиваем на параграфы (двойной перенос строки)
+  const paragraphs = cleaned.split(/\n\n+/).filter(p => p.trim().length > 0)
+  
+  return paragraphs.map(para => {
+    const trimmed = para.trim()
+    
+    // Нумерованный список (1. 2. 3. или 1) 2) 3))
+    const numberedMatch = trimmed.match(/^(\d+)[\.\)]\s+(.+)/)
+    if (numberedMatch) {
+      return { type: 'numbered', number: numberedMatch[1], content: numberedMatch[2] }
+    }
+    
+    // Маркированный список (- или • в начале строки)
+    if (/^[-•*]\s/.test(trimmed)) {
+      return { type: 'bullet', content: trimmed.replace(/^[-•*]\s+/, '') }
+    }
+    
+    // Заголовок (если короткий, начинается с заглавной и заканчивается двоеточием)
+    if (trimmed.length < 120 && /^[A-ZА-ЯЁ]/.test(trimmed) && trimmed.endsWith(':')) {
+      return { type: 'heading', content: trimmed.replace(/:$/, '') }
+    }
+    
+    // Подзаголовок (если содержит только заглавные буквы и короткий)
+    if (trimmed.length < 80 && /^[A-ZА-ЯЁ\s]+$/.test(trimmed) && trimmed.split(' ').length <= 5) {
+      return { type: 'subheading', content: trimmed }
+    }
+    
+    // Обычный параграф
+    return { type: 'paragraph', content: trimmed }
+  })
+}
+
 function buildFallbackPlausibility(analysis: AnalysisResponse, userGoal: string): string {
   const best = analysis.scenarios.best_case
   const realistic = analysis.scenarios.realistic_case
@@ -99,6 +166,12 @@ export default function Home() {
       console.log('User goal:', userGoal)
       const result = await analyzeCSV(file, userGoal.trim())
       console.log('Analysis result:', result)
+      console.log('🔍 AI Analysis Debug:', {
+        plausibility: result.ai_analysis?.plausibility ? `${result.ai_analysis.plausibility.substring(0, 100)}...` : 'null/empty',
+        tips: result.ai_analysis?.tips ? `${result.ai_analysis.tips.substring(0, 100)}...` : 'null/empty',
+        plausibilityLength: result.ai_analysis?.plausibility?.length || 0,
+        tipsLength: result.ai_analysis?.tips?.length || 0
+      })
       setAnalysis(result)
     } catch (err) {
       console.error('Upload error:', err)
@@ -114,13 +187,40 @@ export default function Home() {
   }
 
   // Приоритет: используем ответ от LLM, если он есть, иначе fallback
-  const plausibilityText =
-    analysis ? (analysis.ai_analysis.plausibility || buildFallbackPlausibility(analysis, userGoal)) : null
-  const isPlausibilityFromLLM = analysis ? !!analysis.ai_analysis.plausibility : false
+  // Проверяем, есть ли реальный ответ от LLM (не пустая строка, не только пробелы)
+  const hasLLMPlausibility = analysis?.ai_analysis?.plausibility && 
+    analysis.ai_analysis.plausibility.trim().length > 50 // Минимум 50 символов для реального ответа
+  const plausibilityText = analysis 
+    ? (hasLLMPlausibility 
+        ? analysis.ai_analysis.plausibility 
+        : buildFallbackPlausibility(analysis, userGoal))
+    : null
+  const isPlausibilityFromLLM = !!hasLLMPlausibility
 
-  const tipsText =
-    analysis ? (analysis.ai_analysis.tips || buildFallbackTips(analysis, userGoal)) : null
-  const isTipsFromLLM = analysis ? !!analysis.ai_analysis.tips : false
+  const hasLLMTips = analysis?.ai_analysis?.tips && 
+    analysis.ai_analysis.tips.trim().length > 50 // Минимум 50 символов для реального ответа
+  const tipsText = analysis 
+    ? (hasLLMTips 
+        ? analysis.ai_analysis.tips 
+        : buildFallbackTips(analysis, userGoal))
+    : null
+  const isTipsFromLLM = !!hasLLMTips
+  
+  // Debug logging
+  if (analysis) {
+    console.log('🔍 Frontend Debug - Plausibility:', {
+      hasValue: !!analysis.ai_analysis?.plausibility,
+      isEmpty: !analysis.ai_analysis?.plausibility || analysis.ai_analysis.plausibility.trim().length === 0,
+      length: analysis.ai_analysis?.plausibility?.length || 0,
+      willShow: !!plausibilityText
+    })
+    console.log('🔍 Frontend Debug - Tips:', {
+      hasValue: !!analysis.ai_analysis?.tips,
+      isEmpty: !analysis.ai_analysis?.tips || analysis.ai_analysis.tips.trim().length === 0,
+      length: analysis.ai_analysis?.tips?.length || 0,
+      willShow: !!tipsText
+    })
+  }
 
   return (
     <main className="min-h-screen bg-finsim-surfaceMuted">
@@ -361,13 +461,55 @@ export default function Home() {
                              </p>
                            </div>
                          </div>
-                         <div className="min-h-[400px] max-h-[1000px] overflow-y-auto pr-3">
-                           <div className="text-sm md:text-base leading-7 whitespace-pre-line text-finsim-textMain">
-                             {plausibilityText.split('\n\n').map((paragraph, idx) => (
-                               <p key={idx} className="mb-4 last:mb-0">
-                                 {paragraph}
-                               </p>
-                             ))}
+                         <div className="min-h-[400px] max-h-[1200px] overflow-y-auto pr-4 custom-scrollbar">
+                           <div className={`prose prose-sm max-w-none ${
+                             isPlausibilityFromLLM ? 'text-finsim-textMain' : 'text-finsim-textSecondary'
+                           }`}>
+                             {formatLLMText(plausibilityText).map((item, idx) => {
+                               if (item.type === 'heading') {
+                                 return (
+                                   <h4 key={idx} className="text-base font-semibold text-finsim-textMain mt-8 mb-4 first:mt-0 border-b border-finsim-borderLight pb-2">
+                                     {item.content}
+                                   </h4>
+                                 )
+                               }
+                               if (item.type === 'subheading') {
+                                 return (
+                                   <h5 key={idx} className="text-sm font-semibold text-finsim-textMain mt-6 mb-3 first:mt-0 uppercase tracking-wide">
+                                     {item.content}
+                                   </h5>
+                                 )
+                               }
+                               if (item.type === 'numbered') {
+                                 return (
+                                   <div key={idx} className="flex gap-4 mb-5 group">
+                                     <span className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-finsim-primary/20 to-finsim-primary/10 text-finsim-primary text-xs font-bold flex items-center justify-center mt-0.5 border border-finsim-primary/30 shadow-sm group-hover:shadow transition-shadow">
+                                       {item.number}
+                                     </span>
+                                     <div className="flex-1 pt-0.5">
+                                       <p className="text-sm md:text-base leading-7 text-finsim-textMain">
+                                         {item.content}
+                                       </p>
+                                     </div>
+                                   </div>
+                                 )
+                               }
+                               if (item.type === 'bullet') {
+                                 return (
+                                   <div key={idx} className="flex gap-3 mb-3 pl-1">
+                                     <span className="flex-shrink-0 w-2 h-2 rounded-full bg-finsim-primary mt-2.5" />
+                                     <p className="flex-1 text-sm md:text-base leading-7 text-finsim-textMain">
+                                       {item.content}
+                                     </p>
+                                   </div>
+                                 )
+                               }
+                               return (
+                                 <p key={idx} className="mb-5 last:mb-0 text-sm md:text-base leading-7 text-finsim-textMain">
+                                   {item.content}
+                                 </p>
+                               )
+                             })}
                            </div>
                          </div>
                        </div>
@@ -386,13 +528,55 @@ export default function Home() {
                              </p>
                            </div>
                          </div>
-                         <div className="min-h-[400px] max-h-[1000px] overflow-y-auto pr-3">
-                           <div className="text-sm md:text-base leading-7 whitespace-pre-line text-finsim-textMain">
-                             {tipsText.split('\n\n').map((paragraph, idx) => (
-                               <p key={idx} className="mb-4 last:mb-0">
-                                 {paragraph}
-                               </p>
-                             ))}
+                         <div className="min-h-[400px] max-h-[1200px] overflow-y-auto pr-4 custom-scrollbar">
+                           <div className={`prose prose-sm max-w-none ${
+                             isTipsFromLLM ? 'text-finsim-textMain' : 'text-finsim-textSecondary'
+                           }`}>
+                             {formatLLMText(tipsText).map((item, idx) => {
+                               if (item.type === 'heading') {
+                                 return (
+                                   <h4 key={idx} className="text-base font-semibold text-finsim-textMain mt-8 mb-4 first:mt-0 border-b border-finsim-borderLight pb-2">
+                                     {item.content}
+                                   </h4>
+                                 )
+                               }
+                               if (item.type === 'subheading') {
+                                 return (
+                                   <h5 key={idx} className="text-sm font-semibold text-finsim-textMain mt-6 mb-3 first:mt-0 uppercase tracking-wide">
+                                     {item.content}
+                                   </h5>
+                                 )
+                               }
+                               if (item.type === 'numbered') {
+                                 return (
+                                   <div key={idx} className="flex gap-4 mb-6 group hover:bg-finsim-surfaceElevated/50 rounded-lg p-3 -ml-3 transition-colors">
+                                     <span className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-finsim-primary/25 to-finsim-primary/15 text-finsim-primary text-sm font-bold flex items-center justify-center mt-0.5 border-2 border-finsim-primary/30 shadow-md group-hover:shadow-lg transition-all">
+                                       {item.number}
+                                     </span>
+                                     <div className="flex-1 pt-0.5">
+                                       <p className="text-sm md:text-base leading-7 text-finsim-textMain">
+                                         {item.content}
+                                       </p>
+                                     </div>
+                                   </div>
+                                 )
+                               }
+                               if (item.type === 'bullet') {
+                                 return (
+                                   <div key={idx} className="flex gap-3 mb-3 pl-1">
+                                     <span className="flex-shrink-0 w-2 h-2 rounded-full bg-finsim-primary mt-2.5" />
+                                     <p className="flex-1 text-sm md:text-base leading-7 text-finsim-textMain">
+                                       {item.content}
+                                     </p>
+                                   </div>
+                                 )
+                               }
+                               return (
+                                 <p key={idx} className="mb-5 last:mb-0 text-sm md:text-base leading-7 text-finsim-textMain">
+                                   {item.content}
+                                 </p>
+                               )
+                             })}
                            </div>
                          </div>
                        </div>
