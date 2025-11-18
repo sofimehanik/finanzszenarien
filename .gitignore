@@ -40,3 +40,16 @@ logs/
 *.tmp
 *.temp
 
+# Database files
+backend/*.db
+backend/*.db-journal
+backend/*.sqlite
+backend/*.sqlite3
+
+# User uploaded files (avatars)
+backend/avatars/*.png
+backend/avatars/*.jpg
+backend/avatars/*.jpeg
+backend/avatars/*.gif
+backend/avatars/*.webp
+
