@@ -237,6 +237,56 @@
   .dark .gradient-bg {
     background: linear-gradient(135deg, rgba(17, 24, 39, 0.5) 0%, rgba(15, 23, 42, 0.3) 100%);
   }
+
+  /* Smooth horizontal scrolling with momentum */
+  .scroll-smooth-momentum {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+  }
+
+  .scroll-smooth-momentum::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  .scroll-smooth-momentum::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 3px;
+  }
+
+  .scroll-smooth-momentum::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 3px;
+    transition: background 0.2s ease;
+  }
+
+  .scroll-smooth-momentum::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.3);
+  }
+
+  .dark .scroll-smooth-momentum::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  .dark .scroll-smooth-momentum::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+
+  /* Magnetic drop zone animation on input */
+  #goal.drag-over-input {
+    border: 2px solid rgba(59, 130, 246, 0.5) !important;
+    background: rgba(59, 130, 246, 0.08) !important;
+    box-shadow: 0 0 30px rgba(59, 130, 246, 0.3), 0 4px 20px rgba(0, 0, 0, 0.04) !important;
+    transform: scale(1.01);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .dark #goal.drag-over-input {
+    border: 2px solid rgba(96, 165, 250, 0.5) !important;
+    background: rgba(96, 165, 250, 0.1) !important;
+    box-shadow: 0 0 40px rgba(96, 165, 250, 0.4), 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+  }
 }
 
 /* Smooth transitions for chart elements */

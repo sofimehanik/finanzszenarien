@@ -11,11 +11,13 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { analyzeCSV, AnalysisResponse, getSuggestedQuestions } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
-import { AlertCircle, Lightbulb, Globe, User, Brain, Sparkles, LogOut, Menu } from "lucide-react"
+import { AlertCircle, Lightbulb, Globe, User, Brain, Sparkles, LogOut, Menu, ChevronDown, ChevronUp } from "lucide-react"
+import { motion } from "framer-motion"
 import { AuthModal } from "@/components/AuthModal"
 import { ProfileSettings } from "@/components/ProfileSettings"
 import { AnalysisHistorySidebar } from "@/components/AnalysisHistorySidebar"
 import { UserMenu } from "@/components/UserMenu"
+import { DraggablePills } from "@/components/DraggablePills"
 
 const EXAMPLE_PROMPTS = [
   "Kann ich mir eine monatliche Rate von 500€ für ein Auto leisten?",
@@ -51,6 +53,82 @@ function cleanMarkdownText(text: string): string {
     .map(line => line.replace(/[ \t]+/g, ' ').trim())
     .join('\n')
     .trim()
+}
+
+// Функция для парсинга советов из текста LLM
+function parseTips(text: string): Array<{ emoji: string; title: string; description: string }> {
+  if (!text) return []
+  
+  const tips: Array<{ emoji: string; title: string; description: string }> = []
+  const lines = text.split('\n')
+  
+  // Ищем секцию TIPPS или Tipps
+  let inTipsSection = false
+  const tipsSectionStart = /^(TIPPS|Tipps|TIPPS:|Tipps:)/i
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim()
+    
+    if (tipsSectionStart.test(line)) {
+      inTipsSection = true
+      continue
+    }
+    
+    if (inTipsSection && line) {
+      // Парсим формат: "1. [Emoji] [Titel] - [Beschreibung]"
+      const tipMatch = line.match(/^\d+\.\s*(.+?)\s*-\s*(.+)$/)
+      if (tipMatch) {
+        const fullContent = tipMatch[1].trim()
+        const description = tipMatch[2].trim()
+        
+        // Извлекаем эмоджи (первый эмоджи в строке)
+        const emojiMatch = fullContent.match(/^([\uD83C-\uDBFF\uDC00-\uDFFF]|[\u2600-\u26FF]|[\u2700-\u27BF]|[\u2190-\u21FF]|[\u2300-\u23FF]|[\u2B50-\u2B55]|[\u3030-\u303F]|[\uFE00-\uFE0F])/)
+        const emoji = emojiMatch ? emojiMatch[0] : '💡'
+        const title = fullContent.replace(emoji, '').trim()
+        
+        tips.push({ emoji, title, description })
+      } else {
+        // Альтернативный формат без тире: "1. [Emoji] [Titel] [Beschreibung]"
+        const altMatch = line.match(/^\d+\.\s*(.+)$/)
+        if (altMatch) {
+          const content = altMatch[1].trim()
+          const emojiMatch = content.match(/^([\uD83C-\uDBFF\uDC00-\uDFFF]|[\u2600-\u26FF]|[\u2700-\u27BF]|[\u2190-\u21FF]|[\u2300-\u23FF]|[\u2B50-\u2B55]|[\u3030-\u303F]|[\uFE00-\uFE0F])/)
+          const emoji = emojiMatch ? emojiMatch[0] : '💡'
+          const rest = content.replace(emoji, '').trim()
+          
+          // Пытаемся разделить на заголовок и описание (первые 6 слов = заголовок)
+          const words = rest.split(' ')
+          const titleWords = words.slice(0, 6)
+          const descWords = words.slice(6)
+          
+          tips.push({
+            emoji,
+            title: titleWords.join(' '),
+            description: descWords.join(' ') || rest
+          })
+        }
+      }
+    }
+  }
+  
+  // Если не нашли в секции TIPPS, ищем нумерованные списки в конце текста
+  if (tips.length === 0) {
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i].trim()
+      const tipMatch = line.match(/^\d+\.\s*(.+?)\s*-\s*(.+)$/)
+      if (tipMatch) {
+        const fullContent = tipMatch[1].trim()
+        const description = tipMatch[2].trim()
+        const emojiMatch = fullContent.match(/^([\uD83C-\uDBFF\uDC00-\uDFFF]|[\u2600-\u26FF]|[\u2700-\u27BF]|[\u2190-\u21FF]|[\u2300-\u23FF]|[\u2B50-\u2B55]|[\u3030-\u303F]|[\uFE00-\uFE0F])/)
+        const emoji = emojiMatch ? emojiMatch[0] : '💡'
+        const title = fullContent.replace(emoji, '').trim()
+        tips.unshift({ emoji, title, description })
+        if (tips.length >= 6) break
+      }
+    }
+  }
+  
+  return tips.slice(0, 6) // Возвращаем максимум 6 советов
 }
 
 // Функция для форматирования текста с улучшенной структурой
@@ -161,6 +239,8 @@ export default function Home() {
   const [showProfileSettings, setShowProfileSettings] = useState(false)
   const [showHistorySidebar, setShowHistorySidebar] = useState(false)
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([])
+  const [orderedExamplePrompts, setOrderedExamplePrompts] = useState<string[]>(EXAMPLE_PROMPTS)
+  const [isKIAnalysisExpanded, setIsKIAnalysisExpanded] = useState(false)
   
   // Greeting variations for authenticated users - random on each page load/refresh
   const [greeting, setGreeting] = useState<string | null>(null)
@@ -387,36 +467,18 @@ export default function Home() {
                     />
                   </div>
                   
-                  {/* Premium Example Questions */}
-                  <div className="space-y-4 animate-fade-in-up-delay">
-                    <Label className="text-sm font-medium text-finsim-textSecondary dark:text-finsim-dark-textSecondary tracking-wide">
-                      Beispiel-Fragen
-                    </Label>
-                    <div className="flex flex-wrap gap-3">
-                      {EXAMPLE_PROMPTS.map((example, idx) => (
-                        <button
-                          key={`example-${idx}`}
-                          type="button"
-                          onClick={() => handleExampleClick(example)}
-                          disabled={isLoading}
-                          className="gradient-border premium-hover group relative px-5 py-3 rounded-full text-sm font-medium text-finsim-textMain dark:text-finsim-dark-textMain bg-white/50 dark:bg-finsim-dark-surfaceElevated/50 backdrop-blur-sm hover:bg-white/80 dark:hover:bg-finsim-dark-surfaceElevated/80 transition-all duration-300 text-left disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:transform-none"
-                        >
-                          <span className="relative z-10">{example}</span>
-                        </button>
-                      ))}
-                      {suggestedQuestions.map((question, idx) => (
-                        <button
-                          key={`suggested-${idx}`}
-                          type="button"
-                          onClick={() => handleExampleClick(question)}
-                          disabled={isLoading}
-                          className="gradient-border premium-hover group relative px-5 py-3 rounded-full text-sm font-medium text-finsim-textMain dark:text-finsim-dark-textMain bg-white/50 dark:bg-finsim-dark-surfaceElevated/50 backdrop-blur-sm hover:bg-white/80 dark:hover:bg-finsim-dark-surfaceElevated/80 transition-all duration-300 text-left disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:transform-none"
-                        >
-                          <span className="relative z-10">{question}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  {/* Interactive Draggable Pills */}
+                  <DraggablePills
+                    questions={orderedExamplePrompts}
+                    suggestedQuestions={suggestedQuestions}
+                    onQuestionSelect={handleExampleClick}
+                    onQuestionReorder={(reordered) => {
+                      // Update only the example prompts (not suggested questions)
+                      const exampleOnly = reordered.filter(q => EXAMPLE_PROMPTS.includes(q))
+                      setOrderedExamplePrompts(exampleOnly.length > 0 ? exampleOnly : orderedExamplePrompts)
+                    }}
+                    isLoading={isLoading}
+                  />
                 </section>
 
                 <FileUpload onFileSelect={handleFileSelect} isLoading={isLoading} />
@@ -437,7 +499,7 @@ export default function Home() {
             <div id="finsim-analysis-root" className="space-y-6">
               {/* User Goal Display */}
               {userGoal && (
-                <section className="bg-finsim-primaryLight dark:bg-finsim-dark-primaryLight border border-finsim-border dark:border-finsim-dark-border rounded-xl p-6 sm:p-8">
+                <section className="glass-effect premium-shadow rounded-[24px] p-6 sm:p-8 bg-finsim-primaryLight/30 dark:bg-finsim-dark-primaryLight/30 animate-fade-in-up">
                   <div className="flex items-start gap-3">
                     <Lightbulb className="h-5 w-5 text-finsim-primary dark:text-finsim-dark-primary flex-shrink-0 mt-0.5" />
                     <div className="space-y-1 flex-1">
@@ -449,7 +511,7 @@ export default function Home() {
               )}
 
               {/* Übersicht */}
-              <section className="bg-finsim-surface dark:bg-finsim-dark-surface border border-finsim-border dark:border-finsim-dark-border rounded-xl p-6 sm:p-8 space-y-6">
+              <section className="glass-effect premium-shadow rounded-[24px] p-6 sm:p-8 space-y-6 animate-fade-in-up">
                 <div className="space-y-1">
                   <h3 className="text-lg font-semibold text-finsim-textMain dark:text-finsim-dark-textMain tracking-tight">Finanzübersicht</h3>
                   <p className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-relaxed">
@@ -493,7 +555,7 @@ export default function Home() {
               </div>
 
               {/* Charts */}
-              <section className="bg-finsim-surface dark:bg-finsim-dark-surface border border-finsim-border dark:border-finsim-dark-border rounded-xl p-6 sm:p-8 space-y-6">
+              <section className="glass-effect premium-shadow rounded-[24px] p-6 sm:p-8 space-y-6 animate-fade-in-up">
                 <div className="space-y-1">
                   <h3 className="text-lg font-semibold text-finsim-textMain dark:text-finsim-dark-textMain tracking-tight">Projektionen</h3>
                   <p className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-relaxed">12-Monats-Vorschau der Szenarien</p>
@@ -544,31 +606,47 @@ export default function Home() {
                 </section>
               )}
 
-               {/* KI-Analysen - immer zeigen, wenn es Analyse gibt */}
+               {/* KI-Analysen - collapsible */}
                {analysis && (plausibilityText || tipsText) && (
-                 <section className="bg-finsim-surface dark:bg-finsim-dark-surface border border-finsim-border dark:border-finsim-dark-border rounded-xl p-6 sm:p-8 space-y-6">
-                   <div className="flex items-center justify-between gap-3">
-                     <div className="space-y-1">
-                       <h3 className="text-lg font-semibold text-finsim-textMain dark:text-finsim-dark-textMain tracking-tight">
-                         Vertiefte Analyse & KI-Empfehlungen
-                       </h3>
-                       <p className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-relaxed">
-                         {isPlausibilityFromLLM || isTipsFromLLM
-                           ? "Individuelle Auswertung deiner Daten durch KI"
-                           : "Individuelle Auswertung deiner Daten"}
-                       </p>
+                 <section className="glass-effect premium-shadow rounded-[24px] p-6 sm:p-8 space-y-6 animate-fade-in-up">
+                   <button
+                     onClick={() => setIsKIAnalysisExpanded(!isKIAnalysisExpanded)}
+                     className="w-full flex items-center justify-between gap-3 group hover:opacity-80 transition-opacity"
+                   >
+                     <div className="flex items-center gap-3 flex-1 text-left">
+                       <div className="p-2.5 rounded-2xl bg-gradient-to-br from-finsim-primary/10 to-purple-500/10 dark:from-finsim-dark-primary/20 dark:to-purple-500/20 backdrop-blur-sm">
+                         <Brain className="h-5 w-5 text-finsim-primary dark:text-finsim-dark-primary" />
+                       </div>
+                  <div className="space-y-1">
+                    <h3 className="text-lg font-semibold text-finsim-textMain dark:text-finsim-dark-textMain tracking-tight">
+                           Vertiefte Analyse & KI-Empfehlungen
+                    </h3>
+                    <p className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-relaxed">
+                           {isPlausibilityFromLLM || isTipsFromLLM
+                             ? "Individuelle Auswertung deiner Daten durch KI"
+                             : "Individuelle Auswertung deiner Daten"}
+                    </p>
+                  </div>
                      </div>
-                     <div className="inline-flex items-center gap-2 rounded-full bg-finsim-primaryLight dark:bg-finsim-dark-primaryLight px-3 py-1">
-                       <Brain className="h-4 w-4 text-finsim-primary dark:text-finsim-dark-primary" />
-                       <span className="text-[11px] font-semibold uppercase tracking-wide text-finsim-primary dark:text-finsim-dark-primary">
-                         {isPlausibilityFromLLM || isTipsFromLLM ? "KI-Analyse" : "Analyse"}
-                       </span>
+                     <div className="flex items-center gap-2">
+                       <div className="inline-flex items-center gap-2 rounded-full bg-finsim-primaryLight dark:bg-finsim-dark-primaryLight px-3 py-1.5">
+                         <Brain className="h-3.5 w-3.5 text-finsim-primary dark:text-finsim-dark-primary" />
+                         <span className="text-[10px] font-semibold uppercase tracking-wide text-finsim-primary dark:text-finsim-dark-primary">
+                           {isPlausibilityFromLLM || isTipsFromLLM ? "KI" : "AI"}
+                         </span>
+                       </div>
+                       {isKIAnalysisExpanded ? (
+                         <ChevronUp className="h-5 w-5 text-finsim-textSecondary dark:text-finsim-dark-textSecondary group-hover:text-finsim-primary dark:group-hover:text-finsim-dark-primary transition-colors" />
+                       ) : (
+                         <ChevronDown className="h-5 w-5 text-finsim-textSecondary dark:text-finsim-dark-textSecondary group-hover:text-finsim-primary dark:group-hover:text-finsim-dark-primary transition-colors" />
+                       )}
                      </div>
-                   </div>
+                   </button>
 
-                   <div className="grid gap-6 md:grid-cols-2">
+                   {isKIAnalysisExpanded && (
+                     <div className="grid gap-6 md:grid-cols-2 animate-in fade-in-0 slide-in-from-top-2 duration-300">
                      {plausibilityText && (
-                       <div className="rounded-2xl bg-finsim-surfaceElevated dark:bg-finsim-dark-surfaceElevated border border-finsim-borderLight dark:border-finsim-dark-borderLight p-5 sm:p-6 space-y-4">
+                       <div className="rounded-2xl glass-effect premium-shadow p-5 sm:p-6 space-y-4">
                          <div className="flex items-center gap-2">
                            <Sparkles className="h-4 w-4 text-finsim-primary dark:text-finsim-dark-primary flex-shrink-0" />
                            <div className="space-y-0.5">
@@ -635,7 +713,7 @@ export default function Home() {
                      )}
 
                      {tipsText && (
-                       <div className="rounded-2xl bg-finsim-primaryLight/40 dark:bg-finsim-dark-primaryLight/40 border border-finsim-borderLight dark:border-finsim-dark-borderLight p-5 sm:p-6 space-y-4">
+                       <div className="rounded-2xl glass-effect premium-shadow p-5 sm:p-6 space-y-5">
                          <div className="flex items-center gap-2">
                            <Sparkles className="h-4 w-4 text-finsim-primary dark:text-finsim-dark-primary flex-shrink-0" />
                            <div className="space-y-0.5">
@@ -646,63 +724,139 @@ export default function Home() {
                                Konkrete Handlungsempfehlungen auf Basis deiner Einnahmen, Ausgaben und Ziele.
                              </p>
                            </div>
-                         </div>
-                         <div className="min-h-[400px] max-h-[1200px] overflow-y-auto pr-4 custom-scrollbar">
-                           <div className={`prose prose-sm max-w-none ${
-                             isTipsFromLLM ? 'text-finsim-textMain dark:text-finsim-dark-textMain' : 'text-finsim-textSecondary dark:text-finsim-dark-textSecondary'
-                           }`}>
-                             {formatLLMText(tipsText).map((item, idx) => {
-                               if (item.type === 'heading') {
-                                 return (
-                                   <h4 key={idx} className="text-base font-semibold text-finsim-textMain dark:text-finsim-dark-textMain mt-8 mb-4 first:mt-0 border-b border-finsim-borderLight dark:border-finsim-dark-borderLight pb-2">
-                                     {item.content}
-                                   </h4>
-                                 )
-                               }
-                               if (item.type === 'subheading') {
-                                 return (
-                                   <h5 key={idx} className="text-sm font-semibold text-finsim-textMain dark:text-finsim-dark-textMain mt-6 mb-3 first:mt-0 uppercase tracking-wide">
-                                     {item.content}
-                                   </h5>
-                                 )
-                               }
-                               if (item.type === 'numbered') {
-                                 return (
-                                   <div key={idx} className="flex gap-4 mb-6 group hover:bg-finsim-surfaceElevated/50 dark:hover:bg-finsim-dark-surfaceElevated/50 rounded-lg p-3 -ml-3 transition-colors">
-                                     <span className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-finsim-primary/25 dark:from-finsim-dark-primary/25 to-finsim-primary/15 dark:to-finsim-dark-primary/15 text-finsim-primary dark:text-finsim-dark-primary text-sm font-bold flex items-center justify-center mt-0.5 border-2 border-finsim-primary/30 dark:border-finsim-dark-primary/30 shadow-md group-hover:shadow-lg transition-all">
-                                       {item.number}
-                                     </span>
-                                     <div className="flex-1 pt-0.5">
-                                       <p className="text-sm md:text-base leading-7 text-finsim-textMain dark:text-finsim-dark-textMain">
+                  </div>
+                  
+                         {/* Парсим и отображаем советы */}
+                         {(() => {
+                           const parsedTips = parseTips(tipsText)
+                           const formattedText = formatLLMText(tipsText)
+                           
+                           // Если нашли советы, показываем их красиво
+                           if (parsedTips.length > 0) {
+                             return (
+                               <div className="space-y-4">
+                                 {/* Показываем остальной контент (FAZIT, ANTWORT) */}
+                                 <div className="space-y-4 pb-4 border-b border-finsim-borderLight dark:border-finsim-dark-borderLight">
+                                   {formattedText
+                                     .filter(item => item.type !== 'numbered' || !parsedTips.some(tip => item.content.includes(tip.title)))
+                                     .map((item, idx) => {
+                                       if (item.type === 'heading') {
+                                         return (
+                                           <h4 key={idx} className="text-base font-semibold text-finsim-textMain dark:text-finsim-dark-textMain mt-4 mb-3 first:mt-0">
+                                             {item.content}
+                                           </h4>
+                                         )
+                                       }
+                                       if (item.type === 'bullet') {
+                                         return (
+                                           <div key={idx} className="flex gap-3 mb-2">
+                                             <span className="flex-shrink-0 w-2 h-2 rounded-full bg-finsim-primary dark:bg-finsim-dark-primary mt-2.5" />
+                                             <p className="flex-1 text-sm leading-relaxed text-finsim-textMain dark:text-finsim-dark-textMain">
+                                               {item.content}
+                                             </p>
+                                           </div>
+                                         )
+                                       }
+                                       if (item.type === 'paragraph' && item.content.length > 20) {
+                                         return (
+                                           <p key={idx} className="text-sm leading-relaxed text-finsim-textMain dark:text-finsim-dark-textMain mb-3">
+                                             {item.content}
+                                           </p>
+                                         )
+                                       }
+                                       return null
+                                     })}
+                  </div>
+                  
+                                 {/* Красивые карточки с советами */}
+                                 <div className="grid gap-3">
+                                   {parsedTips.map((tip, idx) => (
+                                     <motion.div
+                                       key={idx}
+                                       initial={{ opacity: 0, y: 10 }}
+                                       animate={{ opacity: 1, y: 0 }}
+                                       transition={{ delay: idx * 0.1, duration: 0.4 }}
+                                       className="group relative p-4 rounded-xl bg-white/60 dark:bg-white/5 border border-finsim-borderLight dark:border-finsim-dark-borderLight hover:bg-white/80 dark:hover:bg-white/10 hover:border-finsim-primary/30 dark:hover:border-finsim-dark-primary/30 transition-all duration-300 hover:shadow-md"
+                                     >
+                                       <div className="flex items-start gap-3">
+                                         <div className="text-2xl flex-shrink-0">{tip.emoji}</div>
+                                         <div className="flex-1 space-y-1">
+                                           <h5 className="text-sm font-semibold text-finsim-textMain dark:text-finsim-dark-textMain">
+                                             {tip.title}
+                                           </h5>
+                                           <p className="text-xs leading-relaxed text-finsim-textSecondary dark:text-finsim-dark-textSecondary">
+                                             {tip.description}
+                                           </p>
+                                         </div>
+                                       </div>
+                                     </motion.div>
+                                   ))}
+                                 </div>
+                               </div>
+                             )
+                           }
+                           
+                           // Fallback: обычное отображение
+                           return (
+                             <div className="min-h-[400px] max-h-[1200px] overflow-y-auto pr-4 custom-scrollbar">
+                               <div className={`prose prose-sm max-w-none ${
+                                 isTipsFromLLM ? 'text-finsim-textMain dark:text-finsim-dark-textMain' : 'text-finsim-textSecondary dark:text-finsim-dark-textSecondary'
+                               }`}>
+                                 {formattedText.map((item, idx) => {
+                                   if (item.type === 'heading') {
+                                     return (
+                                       <h4 key={idx} className="text-base font-semibold text-finsim-textMain dark:text-finsim-dark-textMain mt-8 mb-4 first:mt-0 border-b border-finsim-borderLight dark:border-finsim-dark-borderLight pb-2">
                                          {item.content}
-                                       </p>
-                                     </div>
-                                   </div>
-                                 )
-                               }
-                               if (item.type === 'bullet') {
-                                 return (
-                                   <div key={idx} className="flex gap-3 mb-3 pl-1">
-                                     <span className="flex-shrink-0 w-2 h-2 rounded-full bg-finsim-primary dark:bg-finsim-dark-primary mt-2.5" />
-                                     <p className="flex-1 text-sm md:text-base leading-7 text-finsim-textMain dark:text-finsim-dark-textMain">
+                                       </h4>
+                                     )
+                                   }
+                                   if (item.type === 'subheading') {
+                                     return (
+                                       <h5 key={idx} className="text-sm font-semibold text-finsim-textMain dark:text-finsim-dark-textMain mt-6 mb-3 first:mt-0 uppercase tracking-wide">
+                                         {item.content}
+                                       </h5>
+                                     )
+                                   }
+                                   if (item.type === 'numbered') {
+                                     return (
+                                       <div key={idx} className="flex gap-4 mb-6 group hover:bg-finsim-surfaceElevated/50 dark:hover:bg-finsim-dark-surfaceElevated/50 rounded-lg p-3 -ml-3 transition-colors">
+                                         <span className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-finsim-primary/25 dark:from-finsim-dark-primary/25 to-finsim-primary/15 dark:to-finsim-dark-primary/15 text-finsim-primary dark:text-finsim-dark-primary text-sm font-bold flex items-center justify-center mt-0.5 border-2 border-finsim-primary/30 dark:border-finsim-dark-primary/30 shadow-md group-hover:shadow-lg transition-all">
+                                           {item.number}
+                                         </span>
+                                         <div className="flex-1 pt-0.5">
+                                           <p className="text-sm md:text-base leading-7 text-finsim-textMain dark:text-finsim-dark-textMain">
+                                             {item.content}
+                                           </p>
+                                         </div>
+                                       </div>
+                                     )
+                                   }
+                                   if (item.type === 'bullet') {
+                                     return (
+                                       <div key={idx} className="flex gap-3 mb-3 pl-1">
+                                         <span className="flex-shrink-0 w-2 h-2 rounded-full bg-finsim-primary dark:bg-finsim-dark-primary mt-2.5" />
+                                         <p className="flex-1 text-sm md:text-base leading-7 text-finsim-textMain dark:text-finsim-dark-textMain">
+                                           {item.content}
+                                         </p>
+                                       </div>
+                                     )
+                                   }
+                                   return (
+                                     <p key={idx} className="mb-5 last:mb-0 text-sm md:text-base leading-7 text-finsim-textMain dark:text-finsim-dark-textMain">
                                        {item.content}
                                      </p>
-                                   </div>
-                                 )
-                               }
-                               return (
-                                 <p key={idx} className="mb-5 last:mb-0 text-sm md:text-base leading-7 text-finsim-textMain dark:text-finsim-dark-textMain">
-                                   {item.content}
-                                 </p>
-                               )
-                             })}
-                           </div>
-                         </div>
+                                   )
+                                 })}
+                               </div>
+                             </div>
+                           )
+                         })()}
                        </div>
                      )}
-                   </div>
-                 </section>
-               )}
+                  </div>
+                   )}
+                </section>
+              )}
 
                {/* Actions */}
                <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-between">

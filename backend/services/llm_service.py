@@ -183,7 +183,7 @@ class LLMService:
                         {"role": "user", "content": prompt}
                     ],
                     temperature=0.8,
-                    max_tokens=3500  # Erhöht für mehr detaillierte Tipps
+                    max_tokens=1500  # Reduziert für kompaktere Antworten
                 )
                 result = response.choices[0].message.content.strip()
                 print(f"📊 Tipps erhalten: {len(result)} Zeichen")
@@ -197,7 +197,7 @@ class LLMService:
             else:  # Gemini
                 full_prompt = f"{self._get_system_prompt()}\n\n{prompt}"
                 generation_config = genai.types.GenerationConfig(
-                    max_output_tokens=3500,  # Erhöht für mehr detaillierte Tipps
+                    max_output_tokens=2000,  # Reduziert für kompaktere Antworten
                     temperature=0.8
                 )
                 response = self.model.generate_content(full_prompt, generation_config=generation_config)
@@ -304,7 +304,7 @@ Antworte nur mit der Zusammenfassung, ohne zusätzliche Erklärungen."""
         top_categories = sorted(finance_data.categories.items(), key=lambda x: x[1], reverse=True)[:5]
         category_breakdown = ', '.join([f"{cat}: {amt:.2f} €" for cat, amt in top_categories])
         
-        return f"""Erstelle eine detaillierte, tiefgreifende Plausibilitätsanalyse dieser drei Finanzszenarien:{goal_context}
+        return f"""Erstelle eine PROFESSIONELLE, TIEFGREIFENDE aber LACONISCHE Plausibilitätsanalyse dieser drei Finanzszenarien:{goal_context}
 
 Szenario-Daten:
 1. BEST CASE:
@@ -333,37 +333,29 @@ Historische Finanzdaten (Basis für Projektionen):
 - Größte Ausgabenkategorien: {category_breakdown}
 - Datumsbereich der Daten: {finance_data.date_range.get('start', 'N/A')} bis {finance_data.date_range.get('end', 'N/A')}
 
-Erstelle eine SEHR UMFASSENDE, TIEFGREIFENDE Plausibilitätsanalyse (15-25 Sätze, mindestens 3-4 Absätze), die:
+WICHTIG: 
+- Sei PROFESSIONELL und TIEFGREIFEND, aber LACONISCH (keine langen Fließtexte)
+- Analysiere Zusammenhänge, nicht nur oberflächliche Zahlen
+- Bewerte die Realisierbarkeit basierend auf historischen Daten und Zielen
+- Nutze klare, präzise Sprache ohne Fachjargon
 
-1. Jedes Szenario EINZELN und AUSFÜHRLICH bewertet (mindestens 4-5 Sätze pro Szenario):
-   - Wie realistisch sind die Annahmen? Analysiere Einnahmensteigerung/-senkung, Ausgabenänderungen im Detail.
-   - Welche KONKRETEN externen Faktoren könnten das Szenario beeinflussen? (Inflation, Jobwechsel, unerwartete Ausgaben, Marktveränderungen, Lebensereignisse)
-   - Wie wahrscheinlich ist es, dass dieses Szenario eintritt? Gib eine prozentuale Einschätzung oder qualitative Bewertung mit Begründung.
-   - Welche VORAUSSETZUNGEN müssen erfüllt sein, damit dieses Szenario eintritt?
-   - Was sind die größten Risiken und Chancen für dieses spezifische Szenario?
+Erstelle eine strukturierte Plausibilitätsanalyse:
 
-2. Die Szenarien MITEINANDER VERGLEICHT (mindestens 5-6 Sätze):
-   - Welche Unterschiede sind besonders signifikant? Erkläre WARUM diese Unterschiede wichtig sind.
-   - Welches Szenario ist am wahrscheinlichsten und warum? Gib konkrete Gründe basierend auf den historischen Daten.
-   - Welche Risiken und Chancen sind in allen Szenarien konsistent? Was bedeutet das für den Benutzer?
-   - Wie groß ist die Spannbreite zwischen Best und Worst Case? Was bedeutet diese Volatilität?
+1. EINLEITUNG (2-3 prägnante Sätze):
+   - Welches Szenario ist am wahrscheinlichsten basierend auf historischen Daten?
+   - Hauptunterschiede zwischen den Szenarien im Kontext des Benutzerziels
+   - Kurze Bewertung der Realisierbarkeit
 
-3. KONKRETE HANDLUNGSEMPFEHLUNGEN gibt (mindestens 5-6 Sätze):
-   - Ist das Benutzerziel realistisch erreichbar? Wenn ja, unter welchen KONKRETEN Bedingungen? Wenn nein, warum nicht und was kann getan werden?
-   - Welche KONKRETEN Schritte sollte der Benutzer unternehmen, um das Ziel zu erreichen? Nenne mindestens 3-4 spezifische Maßnahmen.
-   - Welche Fallback-Strategien gibt es, falls das Worst Case eintritt? Beschreibe konkrete Notfallpläne.
-   - Welche Meilensteine sollte der Benutzer setzen, um den Fortschritt zu überwachen? Gib konkrete Zeitpunkte und Beträge.
-   - Welche Anpassungen am Lebensstil oder Budget sind notwendig?
+2. KERNAUSSAGEN (3-5 prägnante Bulletpoints, nutze Emojis: ⚠️ für Risiken, 💡 für Chancen, 🎯 für Erkenntnisse):
+   - Kritische Risikofaktoren, die die Realisierbarkeit beeinflussen
+   - Wichtigste Chancen und positive Faktoren
+   - Realistische vs. optimistische/pessimistische Annahmen
+   - Empfehlung, welches Szenario für die Planung verwendet werden sollte
+   - Zusammenhang zwischen Szenarien und Benutzerziel
 
-4. LANGFRISTIGE PERSPEKTIVE bietet (mindestens 3-4 Sätze):
-   - Was bedeuten diese Szenarien für die finanzielle Gesundheit in 2-3 Jahren? Berechne oder schätze konkrete Beträge.
-   - Welche Gewohnheiten oder Verhaltensänderungen sind notwendig? Beschreibe sie konkret.
-   - Welche Investitions- oder Sparstrategien könnten langfristig helfen?
-   - Wie sieht die finanzielle Situation in 5 Jahren aus, wenn diese Trends anhalten?
+KEINE Prozentwerte oder 0-100 Scores angeben. Verwende stattdessen qualitative Beschreibungen wie "eher optimistisch", "realistisch", "konservativ".
 
-WICHTIG: Gehe wirklich in die Tiefe. Analysiere Zusammenhänge, erkläre WARUM bestimmte Szenarien wahrscheinlicher sind, gib konkrete Zahlen und Zeitrahmen wo möglich. Die Analyse sollte dem Benutzer helfen, fundierte Entscheidungen zu treffen.
-
-Antworte nur mit der detaillierten Analyse, ohne zusätzliche Erklärungen. Strukturiere deine Antwort klar mit Absätzen. Jeder Absatz sollte 3-5 Sätze enthalten."""
+Antworte nur mit der kurzen, strukturierten Analyse. Strukturiere deine Antwort klar: zuerst kurze Einleitung (2-3 Sätze), dann Bulletpoints (3-5 Punkte)."""
     
     def _build_tips_prompt(self, finance_data: ParsedFinanceData, 
                           user_goal: Optional[str] = None,
@@ -402,7 +394,7 @@ Antworte nur mit der detaillierten Analyse, ohne zusätzliche Erklärungen. Stru
         all_categories = sorted(finance_data.categories.items(), key=lambda x: x[1], reverse=True)
         category_details = '\n'.join([f"  - {cat}: {amt:.2f} € ({amt/total_expenses*100:.1f}% der Gesamtausgaben)" for cat, amt in all_categories[:8]])
         
-        return f"""Erstelle detaillierte, tiefgreifende und personalisierte Finanztipps basierend auf diesen umfassenden Finanzdaten:{goal_context}
+        return f"""Erstelle PROFESSIONELLE, TIEFGREIFENDE aber LACONISCHE personalisierte Finanztipps basierend auf diesen Finanzdaten:{goal_context}
 
 Finanzübersicht:
 - Monatliche Einnahmen (Durchschnitt): {finance_data.monthly_averages['income']:.2f} €
@@ -411,33 +403,63 @@ Finanzübersicht:
 - Sparrate: {savings_rate:.1f}% des Einkommens
 - Gesamteinnahmen (historisch): {total_income:.2f} €
 - Gesamtausgaben (historisch): {total_expenses:.2f} €
-- Ausgabenquote: {expense_ratio:.1f}% des Einkommens
 - Aktuelles Guthaben: {finance_data.net_balance:.2f} €
 
 Detaillierte Ausgabenverteilung:
 {category_details}
 
-Erstelle 7-10 UMFASSENDE, SEHR TIEFGREIFENDE Tipps, die:
-1. SEHR KONKRET und umsetzbar sind mit spezifischen Zahlen, Zeitrahmen und detaillierten Handlungsschritten
-2. Auf die größten Ausgabenkategorien EINGEHEN und konkrete Einsparpotenziale mit BETRÄGEN aufzeigen (z.B. "Du könntest in Kategorie X monatlich Y€ sparen durch...")
-3. Die Sparrate und das aktuelle Guthaben BERÜCKSICHTIGEN und zeigen, wie diese optimiert werden können
-4. LANGFRISTIGE Strategien für Vermögensaufbau und finanzielle Sicherheit beinhalten (z.B. Investitionen, Notgroschen, Altersvorsorge)
-5. PSYCHOLOGISCHE Aspekte berücksichtigen (Gewohnheiten ändern, Motivation aufrechterhalten, Verhaltensänderungen)
-6. DIREKT auf das Benutzerziel eingehen und zeigen, wie es erreicht werden kann mit konkreten Schritten
-7. Für junge Erwachsene (18-30) relevant und ansprechend formuliert sind
-8. Realistische Erwartungen setzen und gleichzeitig motivierend sind
-9. PRIORITÄTEN setzen - welche Tipps sind am wichtigsten und sollten zuerst umgesetzt werden?
-10. MESSBARE ZIELE enthalten - wie kann der Benutzer den Fortschritt verfolgen?
+WICHTIG: 
+- Sei PROFESSIONELL und TIEFGREIFEND, aber LACONISCH
+- Analysiere Zusammenhänge zwischen Ausgaben, Einnahmen und Zielen
+- Gib GENAU 6 personalisierte, priorisierte Tipps
+- Jeder Tipp muss DIREKT auf das Benutzerziel eingehen
+- Nutze passende Emojis für jeden Tipp
 
-Jeder Tipp sollte:
-- Eine SEHR KONKRETE Handlungsempfehlung enthalten mit spezifischen Schritten
-- Einen ZEITRAHMEN oder Meilenstein nennen (z.B. "In den nächsten 3 Monaten...")
-- Erklären, WARUM dieser Tipp wichtig ist und welche Auswirkungen er hat
-- KONKRETE ZAHLEN oder Prozentsätze enthalten (z.B. "10% deines Einkommens", "mindestens 500€")
-- Einen KONKRETEN NÄCHSTEN SCHRITT vorschlagen (z.B. "Öffne ein separates Sparkonto", "Erstelle eine Excel-Tabelle für...")
-- Falls relevant, auf die größten Ausgabenkategorien BEZIEHEN und zeigen, wie dort gespart werden kann
+Erstelle deine Antwort in folgender Struktur:
 
-Formatiere als nummerierte Liste. Jeder Tipp sollte 4-6 Sätze lang sein und WIRKLICH in die Tiefe gehen. Erkläre nicht nur WAS zu tun ist, sondern auch WIE und WARUM. Gib konkrete Beispiele und Berechnungen wo möglich."""
+1. FAZIT (2-3 prägnante Sätze):
+   - Kann der Benutzer sein Ziel erreichen? Ja/Nein/Teilweise mit Begründung
+   - Basierend auf aktueller finanzieller Situation und Sparrate
+   - KEINE Prozentwerte, nur klare Aussagen
+
+2. ANTWORT AUF DIE FRAGE (kurze Einleitung + 2-3 prägnante Bulletpoints):
+   - 1-2 Sätze Zusammenfassung der Antwort
+   - 2-3 Bulletpoints mit konkreten, umsetzbaren Antworten
+   - Nutze Emojis: ✓ für positive Aspekte, ⚠️ für Warnungen, 💡 für Erkenntnisse
+
+3. PERSONALISIERTE TIPPS (GENAU 6 Tipps, format wie unten):
+   - Jeder Tipp: Emoji + Kurzer Titel (max. 6 Wörter) + 1-2 prägnante Sätze
+   - PRIORISIERT (wichtigste zuerst)
+   - Konkret, umsetzbar, direkt auf Ziel bezogen
+   - Nutze passende Emojis: 💰 Sparen, ✂️ Ausgaben senken, 📊 Budget, 🧱 Notgroschen, 🚀 Investieren, 🔍 Analysieren, 📈 Einnahmen erhöhen, ⏰ Zeitplan, 🎯 Zielsetzung, 💳 Kredit/Darlehen, 🏠 Wohnen, 🚗 Auto, ✈️ Reisen
+
+Format für TIPPS (GENAU 6):
+1. [Emoji] [Kurzer Titel] - [1-2 prägnante Sätze, direkt auf Ziel bezogen]
+2. [Emoji] [Kurzer Titel] - [1-2 prägnante Sätze, direkt auf Ziel bezogen]
+3. [Emoji] [Kurzer Titel] - [1-2 prägnante Sätze, direkt auf Ziel bezogen]
+4. [Emoji] [Kurzer Titel] - [1-2 prägnante Sätze, direkt auf Ziel bezogen]
+5. [Emoji] [Kurzer Titel] - [1-2 prägnante Sätze, direkt auf Ziel bezogen]
+6. [Emoji] [Kurzer Titel] - [1-2 prägnante Sätze, direkt auf Ziel bezogen]
+
+Beispiel-Struktur:
+FAZIT: [2-3 prägnante Sätze]
+
+ANTWORT AUF DIE FRAGE:
+[1-2 Sätze Einleitung]
+
+• ✓ [Konkrete Antwort 1]
+• ⚠️ [Konkrete Antwort 2]
+• 💡 [Konkrete Antwort 3]
+
+TIPPS:
+1. 💰 [Titel] - [1-2 Sätze]
+2. ✂️ [Titel] - [1-2 Sätze]
+3. 📊 [Titel] - [1-2 Sätze]
+4. 🧱 [Titel] - [1-2 Sätze]
+5. 🚀 [Titel] - [1-2 Sätze]
+6. 🔍 [Titel] - [1-2 Sätze]
+
+Wichtig: PROFESSIONELL, TIEFGREIFEND, aber LACONISCH. Direkt auf den Punkt kommen."""
     
     def _generate_fallback_summary(self, scenario: ScenarioResult) -> str:
         """Fallback-Zusammenfassung ohne LLM"""
@@ -455,11 +477,20 @@ Das Best Case Szenario ist optimistisch, während das Worst Case Szenario
 als Vorsichtsmaßnahme dient. Plane am besten mit dem Realistic Case."""
     
     def _generate_fallback_tips(self, finance_data: ParsedFinanceData) -> str:
-        """Fallback-Tipps ohne LLM"""
+        """Fallback-Tipps ohne LLM - immer 6 Tipps"""
         savings = finance_data.monthly_averages['income'] - finance_data.monthly_averages['expenses']
-        return f"""1. Überprüfe regelmäßig deine Ausgaben in den größten Kategorien
-2. {'Erstelle einen Sparplan für deine monatlichen Ersparnisse' if savings > 0 else 'Identifiziere Einsparpotenziale in deinen Ausgaben'}
-3. Baue einen Notgroschen für unerwartete Ausgaben auf
-4. Nutze Budget-Apps oder Tools zur Finanzverfolgung
-5. Setze dir konkrete Sparziele für Motivation"""
+        return f"""FAZIT: Basierend auf deinen aktuellen Finanzdaten kannst du deine Ziele erreichen, wenn du konsequent an deiner Budgetplanung arbeitest.
+
+ANTWORT AUF DIE FRAGE:
+• ✓ Deine aktuelle Sparrate ermöglicht es dir, deine Ziele zu verfolgen
+• ⚠️ Achte auf unerwartete Ausgaben und plane einen Puffer ein
+• 💡 Regelmäßige Überprüfung deines Budgets hilft, auf Kurs zu bleiben
+
+TIPPS:
+1. 💰 Monatliche Sparrate optimieren - {'Nutze deine monatlichen Ersparnisse von {:.2f} € strategisch für deine Ziele'.format(savings) if savings > 0 else 'Identifiziere Einsparpotenziale, um eine positive Sparrate zu erreichen'}
+2. ✂️ Ausgabenkategorien analysieren - Überprüfe regelmäßig deine größten Ausgabenposten und finde Optimierungsmöglichkeiten
+3. 📊 Budgetplanung erstellen - Erstelle ein monatliches Budget basierend auf deinen durchschnittlichen Einnahmen und Ausgaben
+4. 🧱 Notgroschen aufbauen - Baue einen Notgroschen für unerwartete Ausgaben auf, um finanzielle Sicherheit zu gewinnen
+5. 🚀 Langfristige Ziele setzen - Definiere konkrete, messbare finanzielle Ziele mit klaren Zeitrahmen
+6. 🔍 Regelmäßige Finanzanalyse - Führe monatlich eine Analyse deiner Finanzen durch, um Trends zu erkennen und Anpassungen vorzunehmen"""
 
