@@ -130,7 +130,7 @@ export default function PdfExportButton({ summary }: PdfExportButtonProps) {
     <button
       type="button"
       onClick={handleExport}
-      className="inline-flex items-center justify-center rounded-full bg-finsim-primary text-white px-4 py-2 text-sm font-medium shadow-sm hover:shadow-md hover:bg-blue-600 transition"
+      className="inline-flex items-center justify-center rounded-lg bg-finsim-primary dark:bg-finsim-dark-primary text-white px-6 py-2.5 text-sm font-medium hover:bg-finsim-primaryHover dark:hover:bg-finsim-dark-primaryHover transition-colors"
     >
       Analyse als PDF herunterladen
     </button>

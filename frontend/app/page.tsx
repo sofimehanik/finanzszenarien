@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { FileUpload } from "@/components/FileUpload"
 import { ScenarioCard } from "@/components/ScenarioCard"
 import { ScenarioChart } from "@/components/ScenarioChart"
@@ -8,8 +8,14 @@ import { FinanceDashboard } from "@/components/FinanceDashboard"
 import PdfExportButton from "@/components/PdfExportButton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Label } from "@/components/ui/label"
-import { analyzeCSV, AnalysisResponse } from "@/lib/api"
-import { AlertCircle, Lightbulb, Globe, User, Brain, Sparkles } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { analyzeCSV, AnalysisResponse, getSuggestedQuestions } from "@/lib/api"
+import { useAuth } from "@/contexts/AuthContext"
+import { AlertCircle, Lightbulb, Globe, User, Brain, Sparkles, LogOut, Menu } from "lucide-react"
+import { AuthModal } from "@/components/AuthModal"
+import { ProfileSettings } from "@/components/ProfileSettings"
+import { AnalysisHistorySidebar } from "@/components/AnalysisHistorySidebar"
+import { UserMenu } from "@/components/UserMenu"
 
 const EXAMPLE_PROMPTS = [
   "Kann ich mir eine monatliche Rate von 500€ für ein Auto leisten?",
@@ -146,10 +152,63 @@ function buildFallbackTips(analysis: AnalysisResponse, userGoal: string): string
 }
 
 export default function Home() {
+  const { isAuthenticated, user, logout, checkAuth } = useAuth()
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [userGoal, setUserGoal] = useState("")
+  const [showAuthModal, setShowAuthModal] = useState(false)
+  const [showProfileSettings, setShowProfileSettings] = useState(false)
+  const [showHistorySidebar, setShowHistorySidebar] = useState(false)
+  const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([])
+  
+  // Greeting variations for authenticated users - random on each page load/refresh
+  const [greeting, setGreeting] = useState<string | null>(null)
+  
+  useEffect(() => {
+    if (isAuthenticated && user?.full_name) {
+      const greetings = [
+        `Wie kann ich dir helfen, ${user.full_name}?`,
+        `Was möchtest du heute analysieren, ${user.full_name}?`,
+        `Welche finanzielle Frage beschäftigt dich, ${user.full_name}?`
+      ]
+      // Random greeting on each page load/refresh
+      setGreeting(greetings[Math.floor(Math.random() * greetings.length)])
+    } else {
+      setGreeting(null)
+    }
+  }, [isAuthenticated, user?.full_name])
+
+  // Load suggested questions from user's financial goals
+  const loadSuggestedQuestions = async () => {
+    if (isAuthenticated && user) {
+      try {
+        const result = await getSuggestedQuestions()
+        if (result.questions && result.questions.length > 0) {
+          setSuggestedQuestions(result.questions)
+        } else {
+          setSuggestedQuestions([])
+        }
+      } catch (error) {
+        console.error("Fehler beim Laden von Vorschlägen:", error)
+        setSuggestedQuestions([])
+      }
+    } else {
+      setSuggestedQuestions([])
+    }
+  }
+
+  useEffect(() => {
+    loadSuggestedQuestions()
+  }, [isAuthenticated, user?.financial_goals])
+
+  // Handle profile save - refresh questions if financial goals exist
+  const handleProfileSaved = async () => {
+    // Wait a bit for the user data to be updated
+    setTimeout(async () => {
+      await loadSuggestedQuestions()
+    }, 500)
+  }
 
   const handleFileSelect = async (file: File) => {
     if (!userGoal.trim()) {
@@ -222,24 +281,61 @@ export default function Home() {
     })
   }
 
+  const handleSelectAnalysis = (selectedAnalysis: AnalysisResponse) => {
+    setAnalysis(selectedAnalysis)
+    setShowHistorySidebar(false)
+    // Set user goal if available
+    if (selectedAnalysis.finance_data) {
+      // Try to extract user goal from analysis if stored
+      // For now, just set the analysis
+    }
+  }
+
   return (
-    <main className="min-h-screen bg-finsim-surfaceMuted">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20">
+    <main className="min-h-screen gradient-bg dark:bg-finsim-dark-surfaceMuted">
+      <div className={`max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20 transition-all duration-300 ${
+        showHistorySidebar && isAuthenticated ? 'md:ml-80' : ''
+      }`}>
         {/* Header */}
         <header className="flex items-center justify-between mb-12 sm:mb-16">
           <div className="flex items-center gap-3">
-            <h1 className="text-lg sm:text-xl font-semibold tracking-tight text-finsim-textMain">FinSim</h1>
-            <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-md bg-finsim-primaryLight text-finsim-primary font-medium tracking-wide uppercase">
+            {isAuthenticated && (
+              <button
+                onClick={() => setShowHistorySidebar(true)}
+                className="p-2 rounded-lg hover:bg-finsim-surfaceElevated dark:hover:bg-finsim-dark-surfaceElevated transition-colors"
+                title="Analyse-Verlauf"
+              >
+                <Menu className="h-5 w-5 text-finsim-textSecondary dark:text-finsim-dark-textSecondary" />
+              </button>
+            )}
+            <button
+              onClick={() => {
+                setAnalysis(null)
+                setError(null)
+                setUserGoal("")
+              }}
+              className="text-lg sm:text-xl font-semibold tracking-tight text-finsim-textMain dark:text-finsim-dark-textMain hover:text-finsim-primary dark:hover:text-finsim-dark-primary transition-colors cursor-pointer"
+            >
+              FinSim
+            </button>
+            <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-md bg-finsim-primaryLight dark:bg-finsim-dark-primaryLight text-finsim-primary dark:text-finsim-dark-primary font-medium tracking-wide uppercase">
               Beta
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <button className="p-1.5 rounded-lg hover:bg-finsim-surface transition-colors">
-              <Globe className="h-4 w-4 text-finsim-textSecondary" />
-            </button>
-            <button className="p-1.5 rounded-lg hover:bg-finsim-surface transition-colors">
-              <User className="h-4 w-4 text-finsim-textSecondary" />
-            </button>
+            {isAuthenticated && user ? (
+              <UserMenu onOpenProfile={() => setShowProfileSettings(true)} />
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAuthModal(true)}
+                className="flex items-center gap-2"
+              >
+                <User className="h-4 w-4" />
+                <span className="hidden sm:inline">Anmelden</span>
+              </Button>
+            )}
           </div>
         </header>
 
@@ -248,52 +344,75 @@ export default function Home() {
           {!analysis && (
             <>
               <div className="text-center space-y-3 mb-12">
-                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight text-finsim-textMain text-balance">
+                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight text-finsim-textMain dark:text-finsim-dark-textMain text-balance">
                   Finanzszenarien
                 </h2>
-                <p className="text-base sm:text-lg text-finsim-textSecondary max-w-2xl mx-auto leading-relaxed">
+                <p className="text-base sm:text-lg text-finsim-textSecondary dark:text-finsim-dark-textSecondary max-w-2xl mx-auto leading-relaxed">
                   Analysiere deine Finanzen basierend auf deinen Zielen
                 </p>
               </div>
 
-              <div className="space-y-6">
-                {/* Goal Input Section */}
-                <section className="bg-finsim-surface border border-finsim-border rounded-xl p-6 sm:p-8 space-y-6">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Lightbulb className="h-5 w-5 text-finsim-primary" />
-                      <h3 className="text-lg font-semibold text-finsim-textMain tracking-tight">
-                        Dein finanzielles Ziel
+              <div className="space-y-8">
+                {/* Goal Input Section - Premium Redesign */}
+                <section className="glass-effect premium-shadow rounded-[24px] p-8 sm:p-10 space-y-8 animate-fade-in-up">
+                  {/* Header with more spacing */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-xl bg-gradient-to-br from-finsim-primary/10 to-purple-500/10 dark:from-finsim-dark-primary/20 dark:to-purple-500/20">
+                        <Lightbulb className="h-5 w-5 text-finsim-primary dark:text-finsim-dark-primary" />
+                      </div>
+                      <h3 className="text-2xl font-semibold text-finsim-textMain dark:text-finsim-dark-textMain tracking-tight">
+                        {greeting || "Dein finanzielles Ziel"}
                       </h3>
                     </div>
-                    <p className="text-sm text-finsim-textSecondary leading-relaxed">
-                      Beschreibe, was du erreichen möchtest oder welche finanzielle Entscheidung du treffen willst
+                    <p className="text-base text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-relaxed pl-11">
+                      Beschreibe, was du erreichen möchtest oder welche finanzielle Entscheidung du treffen möchtest.
                     </p>
                   </div>
-                  <div className="space-y-3">
-                    <Label htmlFor="goal" className="text-sm font-medium text-finsim-textMain">Ziel / Frage</Label>
+
+                  {/* Premium Input Field */}
+                  <div className="space-y-4">
                     <textarea
                       id="goal"
                       value={userGoal}
                       onChange={(e) => setUserGoal(e.target.value)}
-                      placeholder="z.B. Kann ich mir eine monatliche Rate von 500€ für ein Auto leisten?"
-                      className="w-full min-h-[120px] rounded-lg border border-finsim-border bg-finsim-surfaceElevated py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-finsim-primary/20 focus:border-finsim-primary transition resize-none"
+                      placeholder="Formuliere dein finanzielles Ziel … ich analysiere alles für dich."
+                      className="glass-input premium-shadow premium-hover w-full min-h-[70px] rounded-[22px] text-finsim-textMain dark:text-finsim-dark-textMain py-5 px-6 text-base font-normal placeholder:text-finsim-textMuted/60 dark:placeholder:text-finsim-dark-textMuted/60 focus:outline-none focus:ring-2 focus:ring-finsim-primary/30 dark:focus:ring-finsim-dark-primary/30 focus:border-transparent transition-all duration-300 resize-none leading-relaxed"
                       disabled={isLoading}
+                      style={{
+                        fontSize: '16px',
+                        lineHeight: '1.6',
+                        fontWeight: 400
+                      }}
                     />
                   </div>
                   
-                  <div className="space-y-3">
-                    <Label className="text-xs font-medium text-finsim-textSecondary uppercase tracking-wide">Beispiel-Fragen</Label>
-                    <div className="flex flex-wrap gap-2">
+                  {/* Premium Example Questions */}
+                  <div className="space-y-4 animate-fade-in-up-delay">
+                    <Label className="text-sm font-medium text-finsim-textSecondary dark:text-finsim-dark-textSecondary tracking-wide">
+                      Beispiel-Fragen
+                    </Label>
+                    <div className="flex flex-wrap gap-3">
                       {EXAMPLE_PROMPTS.map((example, idx) => (
                         <button
-                          key={idx}
+                          key={`example-${idx}`}
                           type="button"
                           onClick={() => handleExampleClick(example)}
                           disabled={isLoading}
-                          className="text-xs px-3 py-1.5 rounded-md border border-finsim-borderLight bg-finsim-surfaceElevated text-finsim-textSecondary hover:border-finsim-border hover:bg-finsim-surface transition-colors text-left"
+                          className="gradient-border premium-hover group relative px-5 py-3 rounded-full text-sm font-medium text-finsim-textMain dark:text-finsim-dark-textMain bg-white/50 dark:bg-finsim-dark-surfaceElevated/50 backdrop-blur-sm hover:bg-white/80 dark:hover:bg-finsim-dark-surfaceElevated/80 transition-all duration-300 text-left disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:transform-none"
                         >
-                          {example}
+                          <span className="relative z-10">{example}</span>
+                        </button>
+                      ))}
+                      {suggestedQuestions.map((question, idx) => (
+                        <button
+                          key={`suggested-${idx}`}
+                          type="button"
+                          onClick={() => handleExampleClick(question)}
+                          disabled={isLoading}
+                          className="gradient-border premium-hover group relative px-5 py-3 rounded-full text-sm font-medium text-finsim-textMain dark:text-finsim-dark-textMain bg-white/50 dark:bg-finsim-dark-surfaceElevated/50 backdrop-blur-sm hover:bg-white/80 dark:hover:bg-finsim-dark-surfaceElevated/80 transition-all duration-300 text-left disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:transform-none"
+                        >
+                          <span className="relative z-10">{question}</span>
                         </button>
                       ))}
                     </div>
@@ -306,8 +425,8 @@ export default function Home() {
           )}
 
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <div className="flex items-center gap-2.5 text-red-600">
+            <div className="bg-red-50 dark:bg-red-500/20 border border-red-200 dark:border-red-500/30 rounded-lg p-4">
+              <div className="flex items-center gap-2.5 text-red-600 dark:text-red-400">
                 <AlertCircle className="h-4 w-4 flex-shrink-0" />
                 <p className="text-sm">{error}</p>
               </div>
@@ -318,48 +437,48 @@ export default function Home() {
             <div id="finsim-analysis-root" className="space-y-6">
               {/* User Goal Display */}
               {userGoal && (
-                <section className="bg-finsim-primaryLight border border-finsim-border rounded-xl p-6 sm:p-8">
+                <section className="bg-finsim-primaryLight dark:bg-finsim-dark-primaryLight border border-finsim-border dark:border-finsim-dark-border rounded-xl p-6 sm:p-8">
                   <div className="flex items-start gap-3">
-                    <Lightbulb className="h-5 w-5 text-finsim-primary flex-shrink-0 mt-0.5" />
+                    <Lightbulb className="h-5 w-5 text-finsim-primary dark:text-finsim-dark-primary flex-shrink-0 mt-0.5" />
                     <div className="space-y-1 flex-1">
-                      <h3 className="text-sm font-medium text-finsim-textSecondary uppercase tracking-wide">Dein Ziel</h3>
-                      <p className="text-base text-finsim-textMain">{userGoal}</p>
+                      <h3 className="text-sm font-medium text-finsim-textSecondary dark:text-finsim-dark-textSecondary uppercase tracking-wide">Dein Ziel</h3>
+                      <p className="text-base text-finsim-textMain dark:text-finsim-dark-textMain">{userGoal}</p>
                     </div>
                   </div>
                 </section>
               )}
 
               {/* Übersicht */}
-              <section className="bg-finsim-surface border border-finsim-border rounded-xl p-6 sm:p-8 space-y-6">
+              <section className="bg-finsim-surface dark:bg-finsim-dark-surface border border-finsim-border dark:border-finsim-dark-border rounded-xl p-6 sm:p-8 space-y-6">
                 <div className="space-y-1">
-                  <h3 className="text-lg font-semibold text-finsim-textMain tracking-tight">Finanzübersicht</h3>
-                  <p className="text-sm text-finsim-textSecondary leading-relaxed">
+                  <h3 className="text-lg font-semibold text-finsim-textMain dark:text-finsim-dark-textMain tracking-tight">Finanzübersicht</h3>
+                  <p className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-relaxed">
                     Basierend auf deinen hochgeladenen Daten
                   </p>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
                   <div className="space-y-1">
-                    <p className="text-xs font-medium text-finsim-textSecondary">Gesamteinnahmen</p>
-                    <p className="text-xl font-semibold font-mono text-finsim-accent">
+                    <p className="text-xs font-medium text-finsim-textSecondary dark:text-finsim-dark-textSecondary">Gesamteinnahmen</p>
+                    <p className="text-xl font-semibold font-mono text-finsim-accent dark:text-finsim-dark-accent">
                       {analysis.finance_data.total_income.toFixed(2)} €
                     </p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-xs font-medium text-finsim-textSecondary">Gesamtausgaben</p>
-                    <p className="text-xl font-semibold font-mono text-red-500">
+                    <p className="text-xs font-medium text-finsim-textSecondary dark:text-finsim-dark-textSecondary">Gesamtausgaben</p>
+                    <p className="text-xl font-semibold font-mono text-red-500 dark:text-red-400">
                       {analysis.finance_data.total_expenses.toFixed(2)} €
                     </p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-xs font-medium text-finsim-textSecondary">Aktuelles Guthaben</p>
-                    <p className="text-xl font-semibold font-mono text-finsim-textMain">
+                    <p className="text-xs font-medium text-finsim-textSecondary dark:text-finsim-dark-textSecondary">Aktuelles Guthaben</p>
+                    <p className="text-xl font-semibold font-mono text-finsim-textMain dark:text-finsim-dark-textMain">
                       {analysis.finance_data.net_balance >= 0 ? "+" : ""}
                       {analysis.finance_data.net_balance.toFixed(2)} €
                     </p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-xs font-medium text-finsim-textSecondary">Transaktionen</p>
-                    <p className="text-xl font-semibold font-mono text-finsim-textMain">
+                    <p className="text-xs font-medium text-finsim-textSecondary dark:text-finsim-dark-textSecondary">Transaktionen</p>
+                    <p className="text-xl font-semibold font-mono text-finsim-textMain dark:text-finsim-dark-textMain">
                       {analysis.finance_data.transaction_count}
                     </p>
                   </div>
@@ -374,44 +493,44 @@ export default function Home() {
               </div>
 
               {/* Charts */}
-              <section className="bg-finsim-surface border border-finsim-border rounded-xl p-6 sm:p-8 space-y-6">
+              <section className="bg-finsim-surface dark:bg-finsim-dark-surface border border-finsim-border dark:border-finsim-dark-border rounded-xl p-6 sm:p-8 space-y-6">
                 <div className="space-y-1">
-                  <h3 className="text-lg font-semibold text-finsim-textMain tracking-tight">Projektionen</h3>
-                  <p className="text-sm text-finsim-textSecondary leading-relaxed">12-Monats-Vorschau der Szenarien</p>
+                  <h3 className="text-lg font-semibold text-finsim-textMain dark:text-finsim-dark-textMain tracking-tight">Projektionen</h3>
+                  <p className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-relaxed">12-Monats-Vorschau der Szenarien</p>
                 </div>
                 <Tabs defaultValue="best_case" className="w-full">
-                  <TabsList className="grid w-full grid-cols-3 rounded-lg bg-finsim-surfaceElevated p-1 border border-finsim-borderLight h-auto">
-                    <TabsTrigger value="best_case" className="rounded-md data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700 data-[state=active]:shadow-sm text-sm font-medium py-2.5 px-4 transition-all duration-200 data-[state=active]:font-semibold">
+                  <TabsList className="grid w-full grid-cols-3 rounded-lg bg-finsim-surfaceElevated dark:bg-finsim-dark-surfaceElevated p-1 border border-finsim-borderLight dark:border-finsim-dark-borderLight h-auto">
+                    <TabsTrigger value="best_case" className="rounded-md data-[state=active]:bg-emerald-50 dark:data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-400 data-[state=active]:shadow-sm text-sm font-medium py-2.5 px-4 transition-all duration-200 data-[state=active]:font-semibold text-finsim-textSecondary dark:text-finsim-dark-textSecondary">
                       <span className="flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 data-[state=active]:bg-emerald-600" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 data-[state=active]:bg-emerald-600 dark:data-[state=active]:bg-emerald-400" />
                         Best Case
                       </span>
                     </TabsTrigger>
-                    <TabsTrigger value="realistic_case" className="rounded-md data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 data-[state=active]:shadow-sm text-sm font-medium py-2.5 px-4 transition-all duration-200 data-[state=active]:font-semibold">
+                    <TabsTrigger value="realistic_case" className="rounded-md data-[state=active]:bg-blue-50 dark:data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm text-sm font-medium py-2.5 px-4 transition-all duration-200 data-[state=active]:font-semibold text-finsim-textSecondary dark:text-finsim-dark-textSecondary">
                       <span className="flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 data-[state=active]:bg-blue-600" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400 data-[state=active]:bg-blue-600 dark:data-[state=active]:bg-blue-400" />
                         Realistisch
                       </span>
                     </TabsTrigger>
-                    <TabsTrigger value="worst_case" className="rounded-md data-[state=active]:bg-red-50 data-[state=active]:text-red-700 data-[state=active]:shadow-sm text-sm font-medium py-2.5 px-4 transition-all duration-200 data-[state=active]:font-semibold">
+                    <TabsTrigger value="worst_case" className="rounded-md data-[state=active]:bg-red-50 dark:data-[state=active]:bg-red-500/20 data-[state=active]:text-red-700 dark:data-[state=active]:text-red-400 data-[state=active]:shadow-sm text-sm font-medium py-2.5 px-4 transition-all duration-200 data-[state=active]:font-semibold text-finsim-textSecondary dark:text-finsim-dark-textSecondary">
                       <span className="flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 data-[state=active]:bg-red-600" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 dark:bg-red-400 data-[state=active]:bg-red-600 dark:data-[state=active]:bg-red-400" />
                         Worst Case
                       </span>
                     </TabsTrigger>
                   </TabsList>
                   <TabsContent value="best_case" className="mt-6 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
-                    <div className="bg-finsim-surfaceElevated border border-finsim-borderLight rounded-lg p-5 sm:p-6">
+                    <div className="bg-finsim-surfaceElevated dark:bg-finsim-dark-surfaceElevated border border-finsim-borderLight dark:border-finsim-dark-borderLight rounded-lg p-5 sm:p-6">
                       <ScenarioChart projections={analysis.scenarios.best_case.projections} title="Best Case Projektion" />
                     </div>
                   </TabsContent>
                   <TabsContent value="realistic_case" className="mt-6 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
-                    <div className="bg-finsim-surfaceElevated border border-finsim-borderLight rounded-lg p-5 sm:p-6">
+                    <div className="bg-finsim-surfaceElevated dark:bg-finsim-dark-surfaceElevated border border-finsim-borderLight dark:border-finsim-dark-borderLight rounded-lg p-5 sm:p-6">
                       <ScenarioChart projections={analysis.scenarios.realistic_case.projections} title="Realistische Projektion" />
                     </div>
                   </TabsContent>
                   <TabsContent value="worst_case" className="mt-6 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
-                    <div className="bg-finsim-surfaceElevated border border-finsim-borderLight rounded-lg p-5 sm:p-6">
+                    <div className="bg-finsim-surfaceElevated dark:bg-finsim-dark-surfaceElevated border border-finsim-borderLight dark:border-finsim-dark-borderLight rounded-lg p-5 sm:p-6">
                       <ScenarioChart projections={analysis.scenarios.worst_case.projections} title="Worst Case Projektion" />
                     </div>
                   </TabsContent>
@@ -425,23 +544,23 @@ export default function Home() {
                 </section>
               )}
 
-               {/* KI-Analysen - всегда показываем, если есть анализ */}
+               {/* KI-Analysen - immer zeigen, wenn es Analyse gibt */}
                {analysis && (plausibilityText || tipsText) && (
-                 <section className="bg-finsim-surface border border-finsim-border rounded-xl p-6 sm:p-8 space-y-6">
+                 <section className="bg-finsim-surface dark:bg-finsim-dark-surface border border-finsim-border dark:border-finsim-dark-border rounded-xl p-6 sm:p-8 space-y-6">
                    <div className="flex items-center justify-between gap-3">
                      <div className="space-y-1">
-                       <h3 className="text-lg font-semibold text-finsim-textMain tracking-tight">
+                       <h3 className="text-lg font-semibold text-finsim-textMain dark:text-finsim-dark-textMain tracking-tight">
                          Vertiefte Analyse & KI-Empfehlungen
                        </h3>
-                       <p className="text-sm text-finsim-textSecondary leading-relaxed">
+                       <p className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-relaxed">
                          {isPlausibilityFromLLM || isTipsFromLLM
                            ? "Individuelle Auswertung deiner Daten durch KI"
                            : "Individuelle Auswertung deiner Daten"}
                        </p>
                      </div>
-                     <div className="inline-flex items-center gap-2 rounded-full bg-finsim-primaryLight px-3 py-1">
-                       <Brain className="h-4 w-4 text-finsim-primary" />
-                       <span className="text-[11px] font-semibold uppercase tracking-wide text-finsim-primary">
+                     <div className="inline-flex items-center gap-2 rounded-full bg-finsim-primaryLight dark:bg-finsim-dark-primaryLight px-3 py-1">
+                       <Brain className="h-4 w-4 text-finsim-primary dark:text-finsim-dark-primary" />
+                       <span className="text-[11px] font-semibold uppercase tracking-wide text-finsim-primary dark:text-finsim-dark-primary">
                          {isPlausibilityFromLLM || isTipsFromLLM ? "KI-Analyse" : "Analyse"}
                        </span>
                      </div>
@@ -449,33 +568,33 @@ export default function Home() {
 
                    <div className="grid gap-6 md:grid-cols-2">
                      {plausibilityText && (
-                       <div className="rounded-2xl bg-finsim-surfaceElevated border border-finsim-borderLight p-5 sm:p-6 space-y-4">
+                       <div className="rounded-2xl bg-finsim-surfaceElevated dark:bg-finsim-dark-surfaceElevated border border-finsim-borderLight dark:border-finsim-dark-borderLight p-5 sm:p-6 space-y-4">
                          <div className="flex items-center gap-2">
-                           <Sparkles className="h-4 w-4 text-finsim-primary flex-shrink-0" />
+                           <Sparkles className="h-4 w-4 text-finsim-primary dark:text-finsim-dark-primary flex-shrink-0" />
                            <div className="space-y-0.5">
-                             <p className="text-xs font-semibold text-finsim-textSecondary uppercase tracking-wide">
+                             <p className="text-xs font-semibold text-finsim-textSecondary dark:text-finsim-dark-textSecondary uppercase tracking-wide">
                                Plausibilitätsanalyse
                              </p>
-                             <p className="text-[11px] text-finsim-textMuted">
+                             <p className="text-[11px] text-finsim-textMuted dark:text-finsim-dark-textMuted">
                                Bewertung, wie realistisch die Szenarien im Kontext deines Ziels sind.
                              </p>
                            </div>
                          </div>
                          <div className="min-h-[400px] max-h-[1200px] overflow-y-auto pr-4 custom-scrollbar">
                            <div className={`prose prose-sm max-w-none ${
-                             isPlausibilityFromLLM ? 'text-finsim-textMain' : 'text-finsim-textSecondary'
+                             isPlausibilityFromLLM ? 'text-finsim-textMain dark:text-finsim-dark-textMain' : 'text-finsim-textSecondary dark:text-finsim-dark-textSecondary'
                            }`}>
                              {formatLLMText(plausibilityText).map((item, idx) => {
                                if (item.type === 'heading') {
                                  return (
-                                   <h4 key={idx} className="text-base font-semibold text-finsim-textMain mt-8 mb-4 first:mt-0 border-b border-finsim-borderLight pb-2">
+                                   <h4 key={idx} className="text-base font-semibold text-finsim-textMain dark:text-finsim-dark-textMain mt-8 mb-4 first:mt-0 border-b border-finsim-borderLight dark:border-finsim-dark-borderLight pb-2">
                                      {item.content}
                                    </h4>
                                  )
                                }
                                if (item.type === 'subheading') {
                                  return (
-                                   <h5 key={idx} className="text-sm font-semibold text-finsim-textMain mt-6 mb-3 first:mt-0 uppercase tracking-wide">
+                                   <h5 key={idx} className="text-sm font-semibold text-finsim-textMain dark:text-finsim-dark-textMain mt-6 mb-3 first:mt-0 uppercase tracking-wide">
                                      {item.content}
                                    </h5>
                                  )
@@ -483,11 +602,11 @@ export default function Home() {
                                if (item.type === 'numbered') {
                                  return (
                                    <div key={idx} className="flex gap-4 mb-5 group">
-                                     <span className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-finsim-primary/20 to-finsim-primary/10 text-finsim-primary text-xs font-bold flex items-center justify-center mt-0.5 border border-finsim-primary/30 shadow-sm group-hover:shadow transition-shadow">
+                                     <span className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-finsim-primary/20 dark:from-finsim-dark-primary/20 to-finsim-primary/10 dark:to-finsim-dark-primary/10 text-finsim-primary dark:text-finsim-dark-primary text-xs font-bold flex items-center justify-center mt-0.5 border border-finsim-primary/30 dark:border-finsim-dark-primary/30 shadow-sm group-hover:shadow transition-shadow">
                                        {item.number}
                                      </span>
                                      <div className="flex-1 pt-0.5">
-                                       <p className="text-sm md:text-base leading-7 text-finsim-textMain">
+                                       <p className="text-sm md:text-base leading-7 text-finsim-textMain dark:text-finsim-dark-textMain">
                                          {item.content}
                                        </p>
                                      </div>
@@ -497,15 +616,15 @@ export default function Home() {
                                if (item.type === 'bullet') {
                                  return (
                                    <div key={idx} className="flex gap-3 mb-3 pl-1">
-                                     <span className="flex-shrink-0 w-2 h-2 rounded-full bg-finsim-primary mt-2.5" />
-                                     <p className="flex-1 text-sm md:text-base leading-7 text-finsim-textMain">
+                                     <span className="flex-shrink-0 w-2 h-2 rounded-full bg-finsim-primary dark:bg-finsim-dark-primary mt-2.5" />
+                                     <p className="flex-1 text-sm md:text-base leading-7 text-finsim-textMain dark:text-finsim-dark-textMain">
                                        {item.content}
                                      </p>
                                    </div>
                                  )
                                }
                                return (
-                                 <p key={idx} className="mb-5 last:mb-0 text-sm md:text-base leading-7 text-finsim-textMain">
+                                 <p key={idx} className="mb-5 last:mb-0 text-sm md:text-base leading-7 text-finsim-textMain dark:text-finsim-dark-textMain">
                                    {item.content}
                                  </p>
                                )
@@ -516,45 +635,45 @@ export default function Home() {
                      )}
 
                      {tipsText && (
-                       <div className="rounded-2xl bg-finsim-primarySoft/40 border border-finsim-borderLight p-5 sm:p-6 space-y-4">
+                       <div className="rounded-2xl bg-finsim-primaryLight/40 dark:bg-finsim-dark-primaryLight/40 border border-finsim-borderLight dark:border-finsim-dark-borderLight p-5 sm:p-6 space-y-4">
                          <div className="flex items-center gap-2">
-                           <Sparkles className="h-4 w-4 text-finsim-primary flex-shrink-0" />
+                           <Sparkles className="h-4 w-4 text-finsim-primary dark:text-finsim-dark-primary flex-shrink-0" />
                            <div className="space-y-0.5">
-                             <p className="text-xs font-semibold text-finsim-textSecondary uppercase tracking-wide">
+                             <p className="text-xs font-semibold text-finsim-textSecondary dark:text-finsim-dark-textSecondary uppercase tracking-wide">
                                Personalisierte Tipps
                              </p>
-                             <p className="text-[11px] text-finsim-textMuted">
+                             <p className="text-[11px] text-finsim-textMuted dark:text-finsim-dark-textMuted">
                                Konkrete Handlungsempfehlungen auf Basis deiner Einnahmen, Ausgaben und Ziele.
                              </p>
                            </div>
                          </div>
                          <div className="min-h-[400px] max-h-[1200px] overflow-y-auto pr-4 custom-scrollbar">
                            <div className={`prose prose-sm max-w-none ${
-                             isTipsFromLLM ? 'text-finsim-textMain' : 'text-finsim-textSecondary'
+                             isTipsFromLLM ? 'text-finsim-textMain dark:text-finsim-dark-textMain' : 'text-finsim-textSecondary dark:text-finsim-dark-textSecondary'
                            }`}>
                              {formatLLMText(tipsText).map((item, idx) => {
                                if (item.type === 'heading') {
                                  return (
-                                   <h4 key={idx} className="text-base font-semibold text-finsim-textMain mt-8 mb-4 first:mt-0 border-b border-finsim-borderLight pb-2">
+                                   <h4 key={idx} className="text-base font-semibold text-finsim-textMain dark:text-finsim-dark-textMain mt-8 mb-4 first:mt-0 border-b border-finsim-borderLight dark:border-finsim-dark-borderLight pb-2">
                                      {item.content}
                                    </h4>
                                  )
                                }
                                if (item.type === 'subheading') {
                                  return (
-                                   <h5 key={idx} className="text-sm font-semibold text-finsim-textMain mt-6 mb-3 first:mt-0 uppercase tracking-wide">
+                                   <h5 key={idx} className="text-sm font-semibold text-finsim-textMain dark:text-finsim-dark-textMain mt-6 mb-3 first:mt-0 uppercase tracking-wide">
                                      {item.content}
                                    </h5>
                                  )
                                }
                                if (item.type === 'numbered') {
                                  return (
-                                   <div key={idx} className="flex gap-4 mb-6 group hover:bg-finsim-surfaceElevated/50 rounded-lg p-3 -ml-3 transition-colors">
-                                     <span className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-finsim-primary/25 to-finsim-primary/15 text-finsim-primary text-sm font-bold flex items-center justify-center mt-0.5 border-2 border-finsim-primary/30 shadow-md group-hover:shadow-lg transition-all">
+                                   <div key={idx} className="flex gap-4 mb-6 group hover:bg-finsim-surfaceElevated/50 dark:hover:bg-finsim-dark-surfaceElevated/50 rounded-lg p-3 -ml-3 transition-colors">
+                                     <span className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-finsim-primary/25 dark:from-finsim-dark-primary/25 to-finsim-primary/15 dark:to-finsim-dark-primary/15 text-finsim-primary dark:text-finsim-dark-primary text-sm font-bold flex items-center justify-center mt-0.5 border-2 border-finsim-primary/30 dark:border-finsim-dark-primary/30 shadow-md group-hover:shadow-lg transition-all">
                                        {item.number}
                                      </span>
                                      <div className="flex-1 pt-0.5">
-                                       <p className="text-sm md:text-base leading-7 text-finsim-textMain">
+                                       <p className="text-sm md:text-base leading-7 text-finsim-textMain dark:text-finsim-dark-textMain">
                                          {item.content}
                                        </p>
                                      </div>
@@ -564,15 +683,15 @@ export default function Home() {
                                if (item.type === 'bullet') {
                                  return (
                                    <div key={idx} className="flex gap-3 mb-3 pl-1">
-                                     <span className="flex-shrink-0 w-2 h-2 rounded-full bg-finsim-primary mt-2.5" />
-                                     <p className="flex-1 text-sm md:text-base leading-7 text-finsim-textMain">
+                                     <span className="flex-shrink-0 w-2 h-2 rounded-full bg-finsim-primary dark:bg-finsim-dark-primary mt-2.5" />
+                                     <p className="flex-1 text-sm md:text-base leading-7 text-finsim-textMain dark:text-finsim-dark-textMain">
                                        {item.content}
                                      </p>
                                    </div>
                                  )
                                }
                                return (
-                                 <p key={idx} className="mb-5 last:mb-0 text-sm md:text-base leading-7 text-finsim-textMain">
+                                 <p key={idx} className="mb-5 last:mb-0 text-sm md:text-base leading-7 text-finsim-textMain dark:text-finsim-dark-textMain">
                                    {item.content}
                                  </p>
                                )
@@ -591,8 +710,9 @@ export default function Home() {
                    onClick={() => {
                      setAnalysis(null)
                      setError(null)
+                     setUserGoal("")
                    }}
-                   className="inline-flex items-center justify-center rounded-lg bg-finsim-primary text-white px-6 py-2.5 text-sm font-medium hover:bg-finsim-primaryHover transition-colors"
+                   className="inline-flex items-center justify-center rounded-lg bg-finsim-primary dark:bg-finsim-dark-primary text-white px-6 py-2.5 text-sm font-medium hover:bg-finsim-primaryHover dark:hover:bg-finsim-dark-primaryHover transition-colors"
                  >
                    Neue Analyse starten
                  </button>
@@ -615,6 +735,34 @@ export default function Home() {
           ) : null}
         </div>
       </div>
+      <AuthModal 
+        open={showAuthModal} 
+        onClose={() => setShowAuthModal(false)}
+        onSuccess={async () => {
+          setShowAuthModal(false)
+          // Wait a bit for token to be set, then check auth
+          setTimeout(async () => {
+            try {
+              await checkAuth()
+            } catch (error) {
+              console.error("Failed to check auth after login:", error)
+              // Don't show error to user, just log it
+            }
+          }, 200)
+        }}
+      />
+        <ProfileSettings
+          open={showProfileSettings}
+          onClose={() => setShowProfileSettings(false)}
+          onProfileSaved={handleProfileSaved}
+        />
+      {isAuthenticated && (
+        <AnalysisHistorySidebar
+          open={showHistorySidebar}
+          onClose={() => setShowHistorySidebar(false)}
+          onSelectAnalysis={handleSelectAnalysis}
+        />
+      )}
     </main>
   )
 }

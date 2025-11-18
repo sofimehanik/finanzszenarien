@@ -60,6 +60,22 @@ module.exports = {
           textMuted: "hsl(215, 16%, 47%)",
           border: "hsl(220, 13%, 91%)",
           borderLight: "hsl(220, 13%, 96%)",
+          // Dark theme colors - ChatGPT/Apple/Monobank style
+          dark: {
+            primary: "hsl(217, 92%, 68%)",
+            primaryHover: "hsl(217, 92%, 72%)",
+            primaryLight: "hsl(217, 92%, 68%, 0.12)",
+            accent: "hsl(142, 76%, 52%)",
+            accentLight: "hsl(142, 76%, 52%, 0.12)",
+            surface: "hsl(240, 10%, 13%)",
+            surfaceElevated: "hsl(240, 10%, 16%)",
+            surfaceMuted: "hsl(240, 10%, 10%)",
+            textMain: "hsl(0, 0%, 98%)",
+            textSecondary: "hsl(0, 0%, 85%)",
+            textMuted: "hsl(0, 0%, 65%)",
+            border: "hsl(240, 10%, 22%)",
+            borderLight: "hsl(240, 10%, 18%)",
+          },
         },
       },
       borderRadius: {

@@ -4,6 +4,36 @@
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+// Token management
+export const getToken = (): string | null => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('auth_token');
+  }
+  return null;
+};
+
+export const setToken = (token: string): void => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('auth_token', token);
+  }
+};
+
+export const removeToken = (): void => {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('auth_token');
+  }
+};
+
+// Helper to get auth headers
+const getAuthHeaders = (): HeadersInit => {
+  const token = getToken();
+  const headers: HeadersInit = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+};
+
 export interface Transaction {
   date: string;          // ISO date string
   amount: number;        // positive for income, negative for expenses
@@ -63,6 +93,255 @@ export interface AnalysisResponse {
   warnings: string[];
 }
 
+// Auth interfaces
+export interface UserRegister {
+  email: string;
+  password: string;
+  full_name?: string;
+}
+
+export interface UserLogin {
+  email: string;
+  password: string;
+}
+
+export interface TokenResponse {
+  access_token: string;
+  token_type: string;
+  user_id: number;
+  email: string;
+  full_name?: string;
+}
+
+export interface UserInfo {
+  id: number;
+  email: string;
+  full_name?: string;
+  avatar_url?: string;
+  profession?: string;
+  about_me?: string;
+  financial_goals?: string;
+  is_active: boolean;
+}
+
+export interface UserUpdate {
+  full_name?: string;
+  profession?: string;
+  about_me?: string;
+  financial_goals?: string;
+}
+
+export interface SuggestedQuestions {
+  questions: string[];
+}
+
+// Auth API functions
+export async function register(userData: UserRegister): Promise<TokenResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(userData),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.detail || 'Registration failed');
+  }
+
+  const data = await response.json();
+  setToken(data.access_token);
+  return data;
+}
+
+export async function login(userData: UserLogin): Promise<TokenResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(userData),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.detail || 'Login failed');
+  }
+
+  const data = await response.json();
+  setToken(data.access_token);
+  return data;
+}
+
+export async function getCurrentUser(): Promise<UserInfo> {
+  try {
+    const token = getToken()
+    const headers: HeadersInit = {}
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    } else {
+      throw new Error('No token found')
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+      method: 'GET',
+      headers: headers,
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        removeToken();
+        throw new Error('Unauthorized');
+      }
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || 'Failed to get user info');
+    }
+
+    return response.json();
+  } catch (error) {
+    // Handle network errors (server not available, CORS, etc.)
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(`Backend server is not available. Please make sure the server is running at ${API_BASE_URL}`);
+    }
+    throw error;
+  }
+}
+
+export async function logout(): Promise<void> {
+  removeToken();
+}
+
+export async function uploadAvatar(file: File): Promise<{ avatar_url: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(`${API_BASE_URL}/api/auth/avatar`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Failed to upload avatar');
+  }
+
+  return response.json();
+}
+
+export async function updateUserProfile(data: UserUpdate): Promise<UserInfo> {
+  const response = await fetch(`${API_BASE_URL}/api/auth/profile`, {
+    method: 'PUT',
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error('Unauthorized');
+    }
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Failed to update profile');
+  }
+
+  return response.json();
+}
+
+export async function getSuggestedQuestions(): Promise<SuggestedQuestions> {
+  const response = await fetch(`${API_BASE_URL}/api/user/suggested-questions`, {
+    method: 'GET',
+    headers: {
+      ...getAuthHeaders(),
+    },
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      return { questions: [] };
+    }
+    return { questions: [] };
+  }
+
+  return response.json();
+}
+
+// Analysis History interfaces
+export interface AnalysisHistoryItem {
+  id: number;
+  title: string;
+  user_goal?: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+// Analysis History API functions
+export async function getAnalysisHistory(): Promise<AnalysisHistoryItem[]> {
+  const response = await fetch(`${API_BASE_URL}/api/analysis/history`, {
+    method: 'GET',
+    headers: {
+      ...getAuthHeaders(),
+    },
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error('Unauthorized');
+    }
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Failed to get analysis history');
+  }
+
+  return response.json();
+}
+
+export async function getAnalysisById(id: number): Promise<AnalysisResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/analysis/${id}`, {
+    method: 'GET',
+    headers: {
+      ...getAuthHeaders(),
+    },
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error('Unauthorized');
+    }
+    if (response.status === 404) {
+      throw new Error('Analysis not found');
+    }
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Failed to get analysis');
+  }
+
+  return response.json();
+}
+
+export async function deleteAnalysis(id: number): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/analysis/${id}`, {
+    method: 'DELETE',
+    headers: {
+      ...getAuthHeaders(),
+    },
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error('Unauthorized');
+    }
+    if (response.status === 404) {
+      throw new Error('Analysis not found');
+    }
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Failed to delete analysis');
+  }
+
+  return response.json();
+}
+
 export async function analyzeCSV(file: File, userGoal: string): Promise<AnalysisResponse> {
   const formData = new FormData();
   formData.append('file', file);
@@ -75,6 +354,7 @@ export async function analyzeCSV(file: File, userGoal: string): Promise<Analysis
 
     const response = await fetch(`${API_BASE_URL}/api/analyze`, {
       method: 'POST',
+      headers: getAuthHeaders(),
       body: formData,
       signal: controller.signal,
     });

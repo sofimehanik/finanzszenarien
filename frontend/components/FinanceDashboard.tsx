@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import {
   BarChart,
   Bar,
@@ -60,6 +60,37 @@ export function FinanceDashboard({ transactions }: FinanceDashboardProps) {
   const [activePieIndex, setActivePieIndex] = useState<number | null>(null)
   const [activeWeekday, setActiveWeekday] = useState<number | null>(null)
   const [activeLineIndex, setActiveLineIndex] = useState<number | null>(null)
+  const [isDark, setIsDark] = useState(false)
+
+  useEffect(() => {
+    const checkTheme = () => {
+      setIsDark(document.documentElement.classList.contains('dark'))
+    }
+    checkTheme()
+    const observer = new MutationObserver(checkTheme)
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    return () => observer.disconnect()
+  }, [])
+
+  const darkColors = [
+    "#60a5fa", // blue
+    "#f87171", // red
+    "#34d399", // green
+    "#fbbf24", // amber
+    "#a78bfa", // purple
+    "#f472b6", // pink
+    "#22d3ee", // cyan
+    "#a3e635", // lime
+    "#fb923c", // orange
+    "#818cf8", // indigo
+  ]
+
+  const chartColors = isDark ? darkColors : COLORS
+  const gridColor = isDark ? "rgba(255, 255, 255, 0.08)" : "#e5e7eb"
+  const textColor = isDark ? "rgba(255, 255, 255, 0.65)" : "#6b7280"
+  const tooltipBg = isDark ? "hsl(240, 10%, 16%)" : "#fff"
+  const tooltipBorder = isDark ? "hsl(240, 10%, 22%)" : "#e5e7eb"
+  const tooltipText = isDark ? "rgba(255, 255, 255, 0.98)" : "#374151"
 
   const chartData = useMemo(() => {
     if (transactions.length === 0) {
@@ -165,8 +196,8 @@ export function FinanceDashboard({ transactions }: FinanceDashboardProps) {
 
   if (transactions.length === 0) {
     return (
-      <div className="bg-finsim-surface border border-finsim-border rounded-xl p-8 text-center">
-        <p className="text-sm text-finsim-textSecondary">
+      <div className="bg-finsim-surface dark:bg-finsim-dark-surface border border-finsim-border dark:border-finsim-dark-border rounded-xl p-8 text-center">
+        <p className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary">
           Lade zuerst deine Finanzdaten hoch, um das Dashboard zu sehen.
         </p>
       </div>
@@ -174,18 +205,18 @@ export function FinanceDashboard({ transactions }: FinanceDashboardProps) {
   }
 
   return (
-    <section className="bg-finsim-surface border border-finsim-border rounded-xl p-6 sm:p-8 space-y-8">
+    <section className="bg-finsim-surface dark:bg-finsim-dark-surface border border-finsim-border dark:border-finsim-dark-border rounded-xl p-6 sm:p-8 space-y-8">
       <div className="space-y-1">
-        <h3 className="text-lg font-semibold text-finsim-textMain tracking-tight">Finanz-Dashboard</h3>
-        <p className="text-sm text-finsim-textSecondary leading-relaxed">Detaillierte Analyse deiner Transaktionen</p>
+        <h3 className="text-lg font-semibold text-finsim-textMain dark:text-finsim-dark-textMain tracking-tight">Finanz-Dashboard</h3>
+        <p className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-relaxed">Detaillierte Analyse deiner Transaktionen</p>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Monthly Income/Expense Chart */}
-        <div className="bg-finsim-surfaceElevated border border-finsim-borderLight rounded-lg p-5 space-y-4">
+        <div className="bg-finsim-surfaceElevated dark:bg-finsim-dark-surfaceElevated border border-finsim-borderLight dark:border-finsim-dark-borderLight rounded-lg p-5 space-y-4">
           <div className="space-y-1">
-            <h4 className="text-sm font-semibold text-finsim-textMain tracking-tight">Monatliche Einnahmen & Ausgaben</h4>
-            <p className="text-xs text-finsim-textSecondary leading-relaxed">Übersicht nach Monaten</p>
+            <h4 className="text-sm font-semibold text-finsim-textMain dark:text-finsim-dark-textMain tracking-tight">Monatliche Einnahmen & Ausgaben</h4>
+            <p className="text-xs text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-relaxed">Übersicht nach Monaten</p>
           </div>
           <div className="h-[240px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -194,25 +225,28 @@ export function FinanceDashboard({ transactions }: FinanceDashboardProps) {
                 onMouseLeave={() => setActiveBar(null)}
                 margin={{ top: 10, right: 16, left: 56, bottom: 24 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#6b7280' }} />
-                <YAxis tickFormatter={(value) => currencyDE.format(Number(value))} tick={{ fontSize: 12, fill: '#6b7280' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={gridColor} opacity={isDark ? 0.3 : 1} />
+                <XAxis dataKey="month" tick={{ fontSize: 12, fill: textColor }} />
+                <YAxis tickFormatter={(value) => currencyDE.format(Number(value))} tick={{ fontSize: 12, fill: textColor }} />
                 <Tooltip 
                   formatter={(value: number, name: string) => {
                     if (activeBar && activeBar !== name) return null
                     return [currencyDE.format(Number(value)), name]
                   }}
                   contentStyle={{ 
-                    backgroundColor: '#fff', 
-                    border: '1px solid #e5e7eb', 
+                    backgroundColor: tooltipBg, 
+                    border: `1px solid ${tooltipBorder}`, 
                     borderRadius: '8px',
-                    transition: 'all 0.2s ease'
+                    transition: 'all 0.2s ease',
+                    boxShadow: isDark ? '0 4px 12px rgba(0, 0, 0, 0.4)' : '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                   }}
+                  labelStyle={{ color: tooltipText }}
+                  itemStyle={{ color: tooltipText }}
                 />
                 <Legend wrapperStyle={{ fontSize: '12px' }} />
                 <Bar 
                   dataKey="Einnahmen" 
-                  fill="#10b981" 
+                  fill={isDark ? "#34d399" : "#10b981"} 
                   radius={[4, 4, 0, 0]}
                   opacity={activeBar === null || activeBar === "Einnahmen" ? 1 : 0.3}
                   onMouseEnter={() => setActiveBar("Einnahmen")}
@@ -223,7 +257,7 @@ export function FinanceDashboard({ transactions }: FinanceDashboardProps) {
                 />
                 <Bar 
                   dataKey="Ausgaben" 
-                  fill="#ef4444" 
+                  fill={isDark ? "#f87171" : "#ef4444"} 
                   radius={[4, 4, 0, 0]}
                   opacity={activeBar === null || activeBar === "Ausgaben" ? 1 : 0.3}
                   onMouseEnter={() => setActiveBar("Ausgaben")}
@@ -238,10 +272,10 @@ export function FinanceDashboard({ transactions }: FinanceDashboardProps) {
         </div>
 
         {/* Category Pie Chart */}
-        <div className="bg-finsim-surfaceElevated border border-finsim-borderLight rounded-lg p-5 space-y-4">
+        <div className="bg-finsim-surfaceElevated dark:bg-finsim-dark-surfaceElevated border border-finsim-borderLight dark:border-finsim-dark-borderLight rounded-lg p-5 space-y-4">
           <div className="space-y-1">
-            <h4 className="text-sm font-semibold text-finsim-textMain tracking-tight">Ausgaben nach Kategorien</h4>
-            <p className="text-xs text-finsim-textSecondary leading-relaxed">
+            <h4 className="text-sm font-semibold text-finsim-textMain dark:text-finsim-dark-textMain tracking-tight">Ausgaben nach Kategorien</h4>
+            <p className="text-xs text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-relaxed">
               Verteilung der Ausgaben – Details siehst du im Tooltip und in der Legende.
             </p>
           </div>
@@ -266,7 +300,7 @@ export function FinanceDashboard({ transactions }: FinanceDashboardProps) {
                   {chartData.categoryData.map((entry, index) => (
                     <Cell 
                       key={`cell-${index}`} 
-                      fill={COLORS[index % COLORS.length]}
+                      fill={chartColors[index % chartColors.length]}
                       opacity={activePieIndex === null || activePieIndex === index ? 1 : 0.3}
                       onMouseEnter={() => setActivePieIndex(index)}
                       style={{ transition: 'opacity 0.2s ease' }}
@@ -284,14 +318,17 @@ export function FinanceDashboard({ transactions }: FinanceDashboardProps) {
                     return [`${currencyDE.format(Number(value))}`, label]
                   }}
                   contentStyle={{ 
-                    backgroundColor: '#fff', 
-                    border: '1px solid #e5e7eb', 
+                    backgroundColor: tooltipBg, 
+                    border: `1px solid ${tooltipBorder}`, 
                     borderRadius: '8px',
-                    transition: 'all 0.2s ease'
+                    transition: 'all 0.2s ease',
+                    boxShadow: isDark ? '0 4px 12px rgba(0, 0, 0, 0.4)' : '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                   }}
+                  labelStyle={{ color: tooltipText }}
+                  itemStyle={{ color: tooltipText }}
                 />
                 <Legend
-                  wrapperStyle={{ fontSize: '12px' }}
+                  wrapperStyle={{ fontSize: '12px', color: textColor }}
                   layout="horizontal"
                   verticalAlign="bottom"
                   iconType="circle"
@@ -318,22 +355,25 @@ export function FinanceDashboard({ transactions }: FinanceDashboardProps) {
                 onMouseLeave={() => setActiveWeekday(null)}
                 margin={{ top: 10, right: 16, left: 56, bottom: 24 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="day" tick={{ fontSize: 12, fill: '#6b7280' }} />
-                <YAxis tickFormatter={(value) => currencyDE.format(Number(value))} tick={{ fontSize: 12, fill: '#6b7280' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={gridColor} opacity={isDark ? 0.3 : 1} />
+                <XAxis dataKey="day" tick={{ fontSize: 12, fill: textColor }} />
+                <YAxis tickFormatter={(value) => currencyDE.format(Number(value))} tick={{ fontSize: 12, fill: textColor }} />
                 <Tooltip 
                   formatter={(value: number) => currencyDE.format(Number(value))}
                   labelFormatter={(label: string) => `Tag: ${label}`}
                   contentStyle={{ 
-                    backgroundColor: '#fff', 
-                    border: '1px solid #e5e7eb', 
+                    backgroundColor: tooltipBg, 
+                    border: `1px solid ${tooltipBorder}`, 
                     borderRadius: '8px',
-                    transition: 'all 0.2s ease'
+                    transition: 'all 0.2s ease',
+                    boxShadow: isDark ? '0 4px 12px rgba(0, 0, 0, 0.4)' : '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                   }}
+                  labelStyle={{ color: tooltipText }}
+                  itemStyle={{ color: tooltipText }}
                 />
                 <Bar 
                   dataKey="amount" 
-                  fill="#3b82f6" 
+                  fill={isDark ? "#60a5fa" : "#3b82f6"} 
                   fillOpacity={0.7}
                   radius={[4, 4, 0, 0]}
                   isAnimationActive={true}
@@ -343,7 +383,7 @@ export function FinanceDashboard({ transactions }: FinanceDashboardProps) {
                   {chartData.weekdayData.map((entry, index) => (
                     <Cell 
                       key={`cell-${index}`}
-                      fill="#3b82f6"
+                      fill={isDark ? "#60a5fa" : "#3b82f6"}
                       fillOpacity={activeWeekday === null || activeWeekday === index ? 0.7 : 0.2}
                       style={{ transition: 'opacity 0.2s ease', cursor: 'pointer' }}
                       onMouseEnter={() => setActiveWeekday(index)}
@@ -356,10 +396,10 @@ export function FinanceDashboard({ transactions }: FinanceDashboardProps) {
         </div>
 
         {/* Cash-Flow Line Chart */}
-        <div className="bg-finsim-surfaceElevated border border-finsim-borderLight rounded-lg p-5 space-y-4">
+        <div className="bg-finsim-surfaceElevated dark:bg-finsim-dark-surfaceElevated border border-finsim-borderLight dark:border-finsim-dark-borderLight rounded-lg p-5 space-y-4">
           <div className="space-y-1">
-            <h4 className="text-sm font-semibold text-finsim-textMain tracking-tight">Cash-Flow Entwicklung</h4>
-            <p className="text-xs text-finsim-textSecondary leading-relaxed">Kumulativer Kontostand über Zeit</p>
+            <h4 className="text-sm font-semibold text-finsim-textMain dark:text-finsim-dark-textMain tracking-tight">Cash-Flow Entwicklung</h4>
+            <p className="text-xs text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-relaxed">Kumulativer Kontostand über Zeit</p>
           </div>
           <div className="h-[240px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -368,37 +408,40 @@ export function FinanceDashboard({ transactions }: FinanceDashboardProps) {
                 onMouseLeave={() => setActiveLineIndex(null)}
                 margin={{ top: 10, right: 16, left: 56, bottom: 32 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <CartesianGrid strokeDasharray="3 3" stroke={gridColor} opacity={isDark ? 0.3 : 1} />
                 <XAxis 
                   dataKey="date" 
                   angle={-45}
                   textAnchor="end"
                   height={60}
                   interval="preserveStartEnd"
-                  tick={{ fontSize: 11, fill: '#6b7280' }}
+                  tick={{ fontSize: 11, fill: textColor }}
                 />
-                <YAxis tickFormatter={(value) => currencyDE.format(Number(value))} tick={{ fontSize: 12, fill: '#6b7280' }} />
+                <YAxis tickFormatter={(value) => currencyDE.format(Number(value))} tick={{ fontSize: 12, fill: textColor }} />
                 <Tooltip 
                   formatter={(value: number) => currencyDE.format(Number(value))}
                   contentStyle={{ 
-                    backgroundColor: '#fff', 
-                    border: '1px solid #e5e7eb', 
+                    backgroundColor: tooltipBg, 
+                    border: `1px solid ${tooltipBorder}`, 
                     borderRadius: '8px',
-                    transition: 'all 0.2s ease'
+                    transition: 'all 0.2s ease',
+                    boxShadow: isDark ? '0 4px 12px rgba(0, 0, 0, 0.4)' : '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                   }}
+                  labelStyle={{ color: tooltipText }}
+                  itemStyle={{ color: tooltipText }}
                 />
-                <Legend wrapperStyle={{ fontSize: '12px' }} />
+                <Legend wrapperStyle={{ fontSize: '12px', color: textColor }} />
                 <Line
                   type="monotone"
                   dataKey="balance"
-                  stroke="#6366f1"
+                  stroke={isDark ? "#818cf8" : "#6366f1"}
                   strokeWidth={2}
                   name="Kontostand"
                   dot={false}
                   activeDot={{ 
                     r: 6, 
-                    fill: '#6366f1',
-                    stroke: '#fff',
+                    fill: isDark ? "#818cf8" : "#6366f1",
+                    stroke: isDark ? 'hsl(240, 10%, 13%)' : '#fff',
                     strokeWidth: 2,
                     style: { transition: 'all 0.2s ease' }
                   }}

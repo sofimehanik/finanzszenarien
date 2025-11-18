@@ -51,7 +51,10 @@ class LLMService:
     
     def generate_scenario_summary(self, scenario: ScenarioResult, 
                                   finance_data: ParsedFinanceData,
-                                  user_goal: Optional[str] = None) -> str:
+                                  user_goal: Optional[str] = None,
+                                  user_profession: Optional[str] = None,
+                                  user_about_me: Optional[str] = None,
+                                  user_financial_goals: Optional[str] = None) -> str:
         """
         Generiert eine verständliche Zusammenfassung für ein Szenario.
         
@@ -62,7 +65,7 @@ class LLMService:
         Returns:
             Deutsche Zusammenfassung als String
         """
-        prompt = self._build_scenario_prompt(scenario, finance_data, user_goal)
+        prompt = self._build_scenario_prompt(scenario, finance_data, user_goal, user_profession, user_about_me, user_financial_goals)
         
         try:
             if self.provider == 'openai':
@@ -90,7 +93,10 @@ class LLMService:
     
     def generate_plausibility_analysis(self, scenarios: Dict[str, ScenarioResult],
                                       finance_data: ParsedFinanceData,
-                                      user_goal: Optional[str] = None) -> str:
+                                      user_goal: Optional[str] = None,
+                                      user_profession: Optional[str] = None,
+                                      user_about_me: Optional[str] = None,
+                                      user_financial_goals: Optional[str] = None) -> str:
         """
         Generiert eine Plausibilitätsanalyse für alle Szenarien.
         
@@ -101,7 +107,7 @@ class LLMService:
         Returns:
             Plausibilitätsanalyse als String
         """
-        prompt = self._build_plausibility_prompt(scenarios, finance_data, user_goal)
+        prompt = self._build_plausibility_prompt(scenarios, finance_data, user_goal, user_profession, user_about_me, user_financial_goals)
         
         try:
             if self.provider == 'openai':
@@ -149,17 +155,24 @@ class LLMService:
                 return None  # None statt fallback, damit frontend fallback anzeigen kann
             return None  # Bei anderen Fehlern auch None zurückgeben
     
-    def generate_tips(self, finance_data: ParsedFinanceData, user_goal: Optional[str] = None) -> str:
+    def generate_tips(self, finance_data: ParsedFinanceData, 
+                     user_goal: Optional[str] = None,
+                     user_profession: Optional[str] = None,
+                     user_about_me: Optional[str] = None,
+                     user_financial_goals: Optional[str] = None) -> str:
         """
         Generiert personalisierte Finanztipps basierend auf den Daten.
         
         Args:
             finance_data: Analysierte Finanzdaten
+            user_goal: Finanzielles Ziel des Benutzers
+            user_profession: Beruf/Profession des Benutzers
+            user_about_me: Zusätzliche Informationen über den Benutzer
             
         Returns:
             Liste von Tipps als String
         """
-        prompt = self._build_tips_prompt(finance_data, user_goal)
+        prompt = self._build_tips_prompt(finance_data, user_goal, user_profession, user_about_me, user_financial_goals)
         
         try:
             if self.provider == 'openai':
@@ -224,11 +237,24 @@ Anforderungen:
     
     def _build_scenario_prompt(self, scenario: ScenarioResult, 
                               finance_data: ParsedFinanceData,
-                              user_goal: Optional[str] = None) -> str:
+                              user_goal: Optional[str] = None,
+                              user_profession: Optional[str] = None,
+                              user_about_me: Optional[str] = None,
+                              user_financial_goals: Optional[str] = None) -> str:
         """Prompt-Template für Szenario-Zusammenfassungen"""
         goal_context = f"\n\nBenutzerziel: {user_goal}" if user_goal else ""
         
-        return f"""Analysiere das folgende Finanzszenario im Kontext des Benutzerziels und erstelle eine kurze, verständliche Zusammenfassung:
+        user_context = ""
+        if user_profession:
+            user_context += f"\nBeruf/Profession des Benutzers: {user_profession}"
+        if user_about_me:
+            user_context += f"\nZusätzliche Informationen über den Benutzer: {user_about_me}"
+        if user_financial_goals:
+            user_context += f"\nFinanzielle Ziele des Benutzers: {user_financial_goals}"
+        if user_context:
+            user_context += "\nBerücksichtige diese Informationen bei der Analyse und passe die Empfehlungen entsprechend an. Besonders wichtig sind die finanziellen Ziele des Benutzers - analysiere, ob das Szenario diese Ziele unterstützt."
+        
+        return f"""Analysiere das folgende Finanzszenario im Kontext des Benutzerziels und erstelle eine kurze, verständliche Zusammenfassung:{user_context}
 
 Szenario-Typ: {scenario.title}
 Beschreibung: {scenario.description}{goal_context}
@@ -250,13 +276,28 @@ Antworte nur mit der Zusammenfassung, ohne zusätzliche Erklärungen."""
     
     def _build_plausibility_prompt(self, scenarios: Dict[str, ScenarioResult],
                                   finance_data: ParsedFinanceData,
-                                  user_goal: Optional[str] = None) -> str:
+                                  user_goal: Optional[str] = None,
+                                  user_profession: Optional[str] = None,
+                                  user_about_me: Optional[str] = None,
+                                  user_financial_goals: Optional[str] = None) -> str:
         """Prompt-Template für Plausibilitätsanalyse"""
         best = scenarios['best_case']
         worst = scenarios['worst_case']
         realistic = scenarios['realistic_case']
         
         goal_context = f"\n\nWICHTIG: Der Benutzer hat folgendes Ziel/Frage: {user_goal}\nAnalysiere die Szenarien speziell im Hinblick auf dieses Ziel." if user_goal else ""
+        
+        user_context = ""
+        if user_profession:
+            user_context += f"\nBeruf/Profession des Benutzers: {user_profession}"
+        if user_about_me:
+            user_context += f"\nZusätzliche Informationen über den Benutzer: {user_about_me}"
+        if user_financial_goals:
+            user_context += f"\nFinanzielle Ziele des Benutzers: {user_financial_goals}"
+        if user_context:
+            user_context += "\nBerücksichtige diese Informationen bei der Plausibilitätsbewertung. Wie beeinflussen Beruf, persönliche Situation und vor allem die finanziellen Ziele die Realisierbarkeit der Szenarien? Bewerte, ob die Szenarien helfen, die finanziellen Ziele des Benutzers zu erreichen."
+        
+        goal_context = goal_context + user_context
         
         # Berechne zusätzliche Metriken für tiefere Analyse
         savings_rate = ((finance_data.monthly_averages['income'] - finance_data.monthly_averages['expenses']) / finance_data.monthly_averages['income'] * 100) if finance_data.monthly_averages['income'] > 0 else 0
@@ -324,7 +365,11 @@ WICHTIG: Gehe wirklich in die Tiefe. Analysiere Zusammenhänge, erkläre WARUM b
 
 Antworte nur mit der detaillierten Analyse, ohne zusätzliche Erklärungen. Strukturiere deine Antwort klar mit Absätzen. Jeder Absatz sollte 3-5 Sätze enthalten."""
     
-    def _build_tips_prompt(self, finance_data: ParsedFinanceData, user_goal: Optional[str] = None) -> str:
+    def _build_tips_prompt(self, finance_data: ParsedFinanceData, 
+                          user_goal: Optional[str] = None,
+                          user_profession: Optional[str] = None,
+                          user_about_me: Optional[str] = None,
+                          user_financial_goals: Optional[str] = None) -> str:
         """Prompt-Template für personalisierte Tipps"""
         top_categories = sorted(
             finance_data.categories.items(),
@@ -333,6 +378,18 @@ Antworte nur mit der detaillierten Analyse, ohne zusätzliche Erklärungen. Stru
         )[:3]
         
         goal_context = f"\n\nWICHTIG: Der Benutzer hat folgendes Ziel/Frage: {user_goal}\nDie Tipps sollten direkt auf dieses Ziel eingehen und helfen, es zu erreichen." if user_goal else ""
+        
+        user_context = ""
+        if user_profession:
+            user_context += f"\nBeruf/Profession des Benutzers: {user_profession}"
+        if user_about_me:
+            user_context += f"\nZusätzliche Informationen über den Benutzer: {user_about_me}"
+        if user_financial_goals:
+            user_context += f"\nFinanzielle Ziele des Benutzers: {user_financial_goals}"
+        if user_context:
+            user_context += "\nBerücksichtige diese Informationen bei den Tipps. Passe die Empfehlungen an den Beruf, die persönliche Situation und VOR ALLEM an die finanziellen Ziele des Benutzers an. Die Tipps sollten konkret helfen, die finanziellen Ziele zu erreichen. Welche spezifischen Möglichkeiten oder Herausforderungen ergeben sich aus dem Beruf, den persönlichen Umständen und den Zielen?"
+        
+        goal_context = goal_context + user_context
         
         # Berechne zusätzliche Metriken
         monthly_savings = finance_data.monthly_averages['income'] - finance_data.monthly_averages['expenses']
