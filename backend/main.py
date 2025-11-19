@@ -387,6 +387,72 @@ async def delete_analysis(
     return {"success": True, "message": "Analysis deleted"}
 
 
+@app.post("/api/tips/details")
+async def get_tip_details(
+    tip_data: dict,
+    current_user: Optional[User] = Depends(get_current_user)
+):
+    """Get detailed information about a specific tip"""
+    if not llm_service:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="LLM service not available"
+        )
+    
+    tip_title = tip_data.get("tip_title", "")
+    tip_description = tip_data.get("tip_description", "")
+    finance_data_dict = tip_data.get("finance_data")
+    user_goal = tip_data.get("user_goal")
+    
+    if not tip_title or not tip_description or not finance_data_dict:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing required fields: tip_title, tip_description, finance_data"
+        )
+    
+    # Convert finance_data dict back to ParsedFinanceData object
+    from services.csv_parser import ParsedFinanceData
+    finance_data = ParsedFinanceData(
+        total_income=finance_data_dict.get("total_income", 0),
+        total_expenses=finance_data_dict.get("total_expenses", 0),
+        net_balance=finance_data_dict.get("net_balance", 0),
+        monthly_averages=finance_data_dict.get("monthly_averages", {}),
+        categories=finance_data_dict.get("categories", {}),
+        date_range=finance_data_dict.get("date_range", {}),
+        transactions=[]
+    )
+    
+    # Get user context
+    user_profession = current_user.profession if current_user else None
+    user_about_me = current_user.about_me if current_user else None
+    user_financial_goals = current_user.financial_goals if current_user else None
+    
+    try:
+        details = llm_service.generate_tip_details(
+            tip_title=tip_title,
+            tip_description=tip_description,
+            finance_data=finance_data,
+            user_goal=user_goal,
+            user_profession=user_profession,
+            user_about_me=user_about_me,
+            user_financial_goals=user_financial_goals
+        )
+        
+        if not details:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to generate tip details"
+            )
+        
+        return {"details": details}
+    except Exception as e:
+        print(f"❌ Error generating tip details: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error generating tip details: {str(e)}"
+        )
+
+
 @app.get("/api/user/suggested-questions")
 async def get_suggested_questions(
     current_user: Optional[User] = Depends(get_current_user)
@@ -515,6 +581,8 @@ async def analyze_finances(
         scenario_summaries = {}
         plausibility_analysis = None
         tips = None
+        scenario_analysis = None
+        summary = None
         
         print(f"🔍 LLM Service Status: {'verfügbar' if llm_service else 'nicht verfügbar'}")
         
@@ -556,6 +624,20 @@ async def analyze_finances(
                         finance_data, user_goal, user_profession, user_about_me, user_financial_goals
                     )
                     
+                    # Szenario-Analyse (kurze Analyse aller 3 Szenarien)
+                    print("  - Starte Szenario-Analyse...")
+                    futures['scenario_analysis'] = executor.submit(
+                        llm_service.generate_scenario_analysis,
+                        scenarios, finance_data, user_goal, user_profession, user_about_me, user_financial_goals
+                    )
+                    
+                    # Zusammenfassung/Итоги
+                    print("  - Starte Zusammenfassung...")
+                    futures['summary'] = executor.submit(
+                        llm_service.generate_summary,
+                        scenarios, finance_data, user_goal, user_profession, user_about_me, user_financial_goals
+                    )
+                    
                     # Ergebnisse sammeln (warten auf alle)
                     print("  - Warte auf alle LLM-Antworten...")
                     for key, scenario in scenarios.items():
@@ -575,6 +657,18 @@ async def analyze_finances(
                         print(f"  📝 Erste 100 Zeichen: {tips[:100]}...")
                     else:
                         print(f"  ⚠️ Tipps nicht verfügbar (LLM-Fehler oder Quota überschritten)")
+                    
+                    scenario_analysis = futures['scenario_analysis'].result()
+                    if scenario_analysis:
+                        print(f"  ✅ Szenario-Analyse erhalten ({len(scenario_analysis)} Zeichen)")
+                    else:
+                        print(f"  ⚠️ Szenario-Analyse nicht verfügbar")
+                    
+                    summary = futures['summary'].result()
+                    if summary:
+                        print(f"  ✅ Zusammenfassung erhalten ({len(summary)} Zeichen)")
+                    else:
+                        print(f"  ⚠️ Zusammenfassung nicht verfügbar")
                 
                 print("✅ Alle LLM-Analysen abgeschlossen")
             except Exception as e:
@@ -586,6 +680,10 @@ async def analyze_finances(
                     plausibility_analysis = None
                 if tips is None:
                     tips = None
+                if 'scenario_analysis' not in locals():
+                    scenario_analysis = None
+                if 'summary' not in locals():
+                    summary = None
         
         # Response zusammenstellen
         print("📦 Erstelle Response...")
@@ -636,7 +734,9 @@ async def analyze_finances(
             },
             "ai_analysis": {
                 "plausibility": plausibility_analysis if (plausibility_analysis and plausibility_analysis.strip()) else None,
-                "tips": tips if (tips and tips.strip()) else None
+                "tips": tips if (tips and tips.strip()) else None,
+                "scenario_analysis": scenario_analysis if (scenario_analysis and scenario_analysis.strip()) else None,
+                "summary": summary if (summary and summary.strip()) else None
             },
             "errors": csv_parser.errors,
             "warnings": csv_parser.warnings

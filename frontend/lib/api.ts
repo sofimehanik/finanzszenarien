@@ -88,6 +88,8 @@ export interface AnalysisResponse {
   ai_analysis: {
     plausibility: string | null;
     tips: string | null;
+    scenario_analysis: string | null;
+    summary: string | null;
   };
   errors: string[];
   warnings: string[];
@@ -264,6 +266,34 @@ export async function getSuggestedQuestions(): Promise<SuggestedQuestions> {
       return { questions: [] };
     }
     return { questions: [] };
+  }
+
+  return response.json();
+}
+
+export async function getTipDetails(
+  tipTitle: string,
+  tipDescription: string,
+  financeData: FinanceData,
+  userGoal?: string
+): Promise<{ details: string }> {
+  const response = await fetch(`${API_BASE_URL}/api/tips/details`, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      tip_title: tipTitle,
+      tip_description: tipDescription,
+      finance_data: financeData,
+      user_goal: userGoal,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Failed to get tip details');
   }
 
   return response.json();

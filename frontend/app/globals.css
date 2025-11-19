@@ -193,6 +193,16 @@
   }
 
   /* Pulse animation for upload icon */
+  /* Animated gradient for scenario cards */
+  @keyframes gradient-pulse {
+    0%, 100% {
+      opacity: 0.6;
+    }
+    50% {
+      opacity: 0.8;
+    }
+  }
+
   @keyframes pulse-soft {
     0%, 100% {
       opacity: 1;

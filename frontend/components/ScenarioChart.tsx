@@ -96,7 +96,10 @@ export function ScenarioChart({ projections, title }: ScenarioChartProps) {
                 <span className="text-xs text-finsim-textSecondary dark:text-finsim-dark-textSecondary">
                   {config.label}:
                 </span>
-                <span className="text-xs font-bold font-mono text-finsim-textMain dark:text-finsim-dark-textMain">
+                <span 
+                  className="text-xs font-bold font-mono"
+                  style={{ color: config.color }}
+                >
                   {entry.value.toFixed(2)} €
                 </span>
               </div>

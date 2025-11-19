@@ -60,44 +60,73 @@ export function ScenarioCard({ scenario, type }: ScenarioCardProps) {
         type === "realistic_case" && "hover:shadow-blue-500/10 dark:hover:shadow-blue-400/20"
       )}
     >
-      {/* Modern accent line - тонкая цветная линия сверху */}
+      {/* Modern accent line - цветная линия слева */}
       <div className={cn(
-        "absolute top-0 left-0 right-0 h-1 transition-all duration-300",
-        type === "best_case" && "bg-gradient-to-r from-emerald-400 via-emerald-500 to-emerald-600",
-        type === "worst_case" && "bg-gradient-to-r from-red-400 via-red-500 to-red-600",
-        type === "realistic_case" && "bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600"
+        "absolute left-0 top-0 bottom-0 w-1 transition-all duration-300",
+        type === "best_case" && "bg-gradient-to-b from-emerald-400 via-emerald-500 to-emerald-600",
+        type === "worst_case" && "bg-gradient-to-b from-red-400 via-red-500 to-red-600",
+        type === "realistic_case" && "bg-gradient-to-b from-blue-400 via-blue-500 to-blue-600"
       )} />
       
-      {/* Subtle color glow on hover - ненавязчивая подсветка */}
+      {/* Анимированный градиентный фон внутри карточки */}
+      <div 
+        className={cn(
+          "absolute inset-0 pointer-events-none rounded-[24px] z-[1]",
+          type === "best_case" && "bg-gradient-to-br from-emerald-500/10 via-emerald-500/7 to-emerald-500/4 dark:from-emerald-500/15 dark:via-emerald-500/10 dark:to-emerald-500/6",
+          type === "worst_case" && "bg-gradient-to-br from-red-500/10 via-red-500/7 to-red-500/4 dark:from-red-500/15 dark:via-red-500/10 dark:to-red-500/6",
+          type === "realistic_case" && "bg-gradient-to-br from-blue-500/10 via-blue-500/7 to-blue-500/4 dark:from-blue-500/15 dark:via-blue-500/10 dark:to-blue-500/6"
+        )}
+        style={{
+          animation: 'gradient-pulse 4s ease-in-out infinite'
+        }}
+      />
+      
+      {/* Полупрозрачный цветной градиентный фон при наведении */}
+      <div className={cn(
+        "absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ease-out pointer-events-none rounded-[24px]",
+        type === "best_case" && "bg-gradient-to-br from-emerald-500/18 via-emerald-500/12 to-emerald-500/8 dark:from-emerald-500/25 dark:via-emerald-500/18 dark:to-emerald-500/12",
+        type === "worst_case" && "bg-gradient-to-br from-red-500/18 via-red-500/12 to-red-500/8 dark:from-red-500/25 dark:via-red-500/18 dark:to-red-500/12",
+        type === "realistic_case" && "bg-gradient-to-br from-blue-500/18 via-blue-500/12 to-blue-500/8 dark:from-blue-500/25 dark:via-blue-500/18 dark:to-blue-500/12"
+      )} />
+      
+      {/* Subtle color glow on hover - ненавязчивая подсветка слева */}
+      <div className={cn(
+        "absolute left-0 top-0 bottom-0 w-0 opacity-0 group-hover:w-1 group-hover:opacity-100 transition-all duration-500 pointer-events-none rounded-l-[24px]",
+        type === "best_case" && "bg-gradient-to-b from-emerald-500/30 via-emerald-500/20 to-emerald-500/30",
+        type === "worst_case" && "bg-gradient-to-b from-red-500/30 via-red-500/20 to-red-500/30",
+        type === "realistic_case" && "bg-gradient-to-b from-blue-500/30 via-blue-500/20 to-blue-500/30"
+      )} />
+      
+      {/* Additional subtle glow on hover - общая подсветка */}
       <div className={cn(
         "absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-[24px]",
-        type === "best_case" && "bg-gradient-to-br from-emerald-500/5 via-transparent to-transparent",
-        type === "worst_case" && "bg-gradient-to-br from-red-500/5 via-transparent to-transparent",
-        type === "realistic_case" && "bg-gradient-to-br from-blue-500/5 via-transparent to-transparent"
+        type === "best_case" && "bg-gradient-to-r from-emerald-500/3 via-transparent to-transparent",
+        type === "worst_case" && "bg-gradient-to-r from-red-500/3 via-transparent to-transparent",
+        type === "realistic_case" && "bg-gradient-to-r from-blue-500/3 via-transparent to-transparent"
       )} />
       
-      <div className="relative p-6 md:p-7 space-y-3">
+      <div className="relative p-6 md:p-7 space-y-5 pl-7 md:pl-8 flex flex-col h-full z-10">
         {/* Header */}
-        <div className="space-y-1.5">
+        <div className="space-y-2.5">
           <div className="flex items-center gap-2.5">
             {getIcon()}
-            <h3 className="text-sm font-semibold text-finsim-textMain dark:text-finsim-dark-textMain tracking-tight">{scenario.title}</h3>
+            <h3 className="text-base font-semibold text-finsim-textMain dark:text-finsim-dark-textMain tracking-tight">{scenario.title}</h3>
           </div>
-          <p className="text-[11px] text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-snug line-clamp-2">{scenario.description}</p>
+          <p className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-relaxed pr-1">{scenario.description}</p>
         </div>
 
         {/* Financial Metrics */}
-        <div className="grid grid-cols-2 gap-2.5 pb-2.5 border-b border-finsim-borderLight dark:border-finsim-dark-borderLight">
-          <div className="space-y-0.5">
-            <p className="text-[9px] font-semibold text-finsim-textSecondary dark:text-finsim-dark-textSecondary uppercase tracking-wider">Monatlich</p>
-            <p className={cn("text-base font-bold font-mono tracking-tight", getValueColor())}>
+        <div className="grid grid-cols-2 gap-4 pb-4 border-b border-finsim-borderLight dark:border-finsim-dark-borderLight">
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold text-finsim-textSecondary dark:text-finsim-dark-textSecondary uppercase tracking-wider">Monatlich</p>
+            <p className={cn("text-lg font-bold font-mono tracking-tight", getValueColor())}>
               {scenario.monthly_savings >= 0 ? "+" : ""}
               {scenario.monthly_savings.toFixed(2)} €
             </p>
           </div>
-          <div className="space-y-0.5">
-            <p className="text-[9px] font-semibold text-finsim-textSecondary dark:text-finsim-dark-textSecondary uppercase tracking-wider">12 Monate</p>
-            <p className={cn("text-base font-bold font-mono tracking-tight", getValueColor())}>
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold text-finsim-textSecondary dark:text-finsim-dark-textSecondary uppercase tracking-wider">12 Monate</p>
+            <p className={cn("text-lg font-bold font-mono tracking-tight", getValueColor())}>
               {scenario.final_balance >= 0 ? "+" : ""}
               {scenario.final_balance.toFixed(2)} €
             </p>
@@ -106,54 +135,54 @@ export function ScenarioCard({ scenario, type }: ScenarioCardProps) {
 
         {/* AI Summary - Collapsible */}
         {scenario.ai_summary && (
-          <div className="space-y-1">
+          <div className="space-y-2.5">
             <button
               onClick={() => setExpandedKIAnalysis(!expandedKIAnalysis)}
-              className="w-full flex items-center justify-between gap-2 group hover:opacity-80 transition-opacity"
+              className="w-full flex items-center justify-between gap-2 group hover:opacity-80 transition-opacity py-1"
             >
-              <div className="flex items-center gap-1.5">
-                <Sparkles className="h-3 w-3 text-finsim-primary dark:text-finsim-dark-primary flex-shrink-0" />
-                <p className="text-[9px] font-semibold text-finsim-textSecondary dark:text-finsim-dark-textSecondary uppercase tracking-wider">KI-Analyse</p>
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-finsim-primary dark:text-finsim-dark-primary flex-shrink-0" />
+                <p className="text-xs font-semibold text-finsim-textSecondary dark:text-finsim-dark-textSecondary uppercase tracking-wider">KI-Analyse</p>
               </div>
               {expandedKIAnalysis ? (
-                <ChevronUp className="h-3 w-3 text-finsim-textSecondary dark:text-finsim-dark-textSecondary group-hover:text-finsim-primary dark:group-hover:text-finsim-dark-primary transition-colors flex-shrink-0" />
+                <ChevronUp className="h-4 w-4 text-finsim-textSecondary dark:text-finsim-dark-textSecondary group-hover:text-finsim-primary dark:group-hover:text-finsim-dark-primary transition-colors flex-shrink-0" />
               ) : (
-                <ChevronDown className="h-3 w-3 text-finsim-textSecondary dark:text-finsim-dark-textSecondary group-hover:text-finsim-primary dark:group-hover:text-finsim-dark-primary transition-colors flex-shrink-0" />
+                <ChevronDown className="h-4 w-4 text-finsim-textSecondary dark:text-finsim-dark-textSecondary group-hover:text-finsim-primary dark:group-hover:text-finsim-dark-primary transition-colors flex-shrink-0" />
               )}
             </button>
             {expandedKIAnalysis && (
               <div className="animate-in fade-in-0 slide-in-from-top-2 duration-300 pt-1">
-                <p className="text-[11px] text-finsim-textMain dark:text-finsim-dark-textMain leading-snug">{scenario.ai_summary}</p>
+                <p className="text-sm text-finsim-textMain dark:text-finsim-dark-textMain leading-relaxed pr-1">{scenario.ai_summary}</p>
               </div>
-            )}
+              )}
           </div>
         )}
 
         {/* Risk Factors - Compact */}
         {scenario.risk_factors.length > 0 && (
-          <div className="space-y-1">
-            <p className="text-[9px] font-semibold text-red-500 uppercase tracking-wider">Risikofaktoren</p>
-            <ul className="text-[11px] text-finsim-textSecondary dark:text-finsim-dark-textSecondary space-y-0.5 leading-snug">
+          <div className="space-y-2.5">
+            <p className="text-xs font-semibold text-red-500 dark:text-red-400 uppercase tracking-wider">Risikofaktoren</p>
+            <ul className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary space-y-2 leading-relaxed">
               {(expandedRisks ? scenario.risk_factors : scenario.risk_factors.slice(0, 4)).map((risk, idx) => (
-                <li key={idx} className="flex items-start gap-1.5">
-                  <span className="text-red-500 dark:text-red-400 mt-0.5 text-[9px] flex-shrink-0">▸</span>
-                  <span className="line-clamp-2 flex-1">{risk}</span>
+                <li key={idx} className="flex items-start gap-2.5">
+                  <span className="text-red-500 dark:text-red-400 mt-1 text-xs flex-shrink-0">▸</span>
+                  <span className="flex-1 pr-1">{risk}</span>
                 </li>
               ))}
               {scenario.risk_factors.length > 4 && (
-                <li className="mt-1 pt-1 border-t border-finsim-borderLight dark:border-finsim-dark-borderLight">
+                <li className="mt-2.5 pt-2.5 border-t border-finsim-borderLight dark:border-finsim-dark-borderLight">
                   <button
                     onClick={() => setExpandedRisks(!expandedRisks)}
-                    className="flex items-center gap-1.5 text-[10px] font-semibold text-red-500 hover:text-red-600 transition-colors w-full text-left"
+                    className="flex items-center gap-1.5 text-xs font-semibold text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 transition-colors w-full text-left"
                   >
                     {expandedRisks ? (
                       <>
-                        <ChevronUp className="h-3 w-3" />
+                        <ChevronUp className="h-3.5 w-3.5" />
                         <span>Weniger anzeigen</span>
                       </>
                     ) : (
                       <>
-                        <ChevronDown className="h-3 w-3" />
+                        <ChevronDown className="h-3.5 w-3.5" />
                         <span>+{scenario.risk_factors.length - 4} weitere anzeigen</span>
                       </>
                     )}
@@ -166,29 +195,29 @@ export function ScenarioCard({ scenario, type }: ScenarioCardProps) {
 
         {/* Opportunities - Compact */}
         {scenario.opportunities.length > 0 && (
-          <div className="space-y-1">
-            <p className="text-[9px] font-semibold text-emerald-600 uppercase tracking-wider">Chancen</p>
-            <ul className="text-[11px] text-finsim-textSecondary dark:text-finsim-dark-textSecondary space-y-0.5 leading-snug">
+          <div className="space-y-2.5">
+            <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Chancen</p>
+            <ul className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary space-y-2 leading-relaxed">
               {(expandedOpportunities ? scenario.opportunities : scenario.opportunities.slice(0, 4)).map((opp, idx) => (
-                <li key={idx} className="flex items-start gap-1.5">
-                  <span className="text-emerald-600 dark:text-emerald-400 mt-0.5 text-[9px] flex-shrink-0">▸</span>
-                  <span className="line-clamp-2 flex-1">{opp}</span>
+                <li key={idx} className="flex items-start gap-2.5">
+                  <span className="text-emerald-600 dark:text-emerald-400 mt-1 text-xs flex-shrink-0">▸</span>
+                  <span className="flex-1 pr-1">{opp}</span>
                 </li>
               ))}
               {scenario.opportunities.length > 4 && (
-                <li className="mt-1 pt-1 border-t border-finsim-borderLight dark:border-finsim-dark-borderLight">
+                <li className="mt-2.5 pt-2.5 border-t border-finsim-borderLight dark:border-finsim-dark-borderLight">
                   <button
                     onClick={() => setExpandedOpportunities(!expandedOpportunities)}
-                    className="flex items-center gap-1.5 text-[10px] font-semibold text-emerald-600 hover:text-emerald-700 transition-colors w-full text-left"
+                    className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors w-full text-left"
                   >
                     {expandedOpportunities ? (
                       <>
-                        <ChevronUp className="h-3 w-3" />
+                        <ChevronUp className="h-3.5 w-3.5" />
                         <span>Weniger anzeigen</span>
                       </>
                     ) : (
                       <>
-                        <ChevronDown className="h-3 w-3" />
+                        <ChevronDown className="h-3.5 w-3.5" />
                         <span>+{scenario.opportunities.length - 4} weitere anzeigen</span>
                       </>
                     )}
@@ -202,4 +231,3 @@ export function ScenarioCard({ scenario, type }: ScenarioCardProps) {
     </div>
   )
 }
-
