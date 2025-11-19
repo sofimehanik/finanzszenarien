@@ -62,6 +62,11 @@ def init_db():
                 conn.execute(text("ALTER TABLE users ADD COLUMN financial_goals TEXT"))
                 conn.commit()
             print("✅ Added financial_goals column to users table")
+        if 'quiz_profile' not in columns:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN quiz_profile TEXT"))
+                conn.commit()
+            print("✅ Added quiz_profile column to users table")
     
     print("✅ Database initialized")
 

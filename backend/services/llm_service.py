@@ -54,7 +54,8 @@ class LLMService:
                                   user_goal: Optional[str] = None,
                                   user_profession: Optional[str] = None,
                                   user_about_me: Optional[str] = None,
-                                  user_financial_goals: Optional[str] = None) -> str:
+                                  user_financial_goals: Optional[str] = None,
+                                  quiz_profile: Optional[Dict[str, str]] = None) -> str:
         """
         Generiert eine verständliche Zusammenfassung für ein Szenario.
         
@@ -65,7 +66,7 @@ class LLMService:
         Returns:
             Deutsche Zusammenfassung als String
         """
-        prompt = self._build_scenario_prompt(scenario, finance_data, user_goal, user_profession, user_about_me, user_financial_goals)
+        prompt = self._build_scenario_prompt(scenario, finance_data, user_goal, user_profession, user_about_me, user_financial_goals, quiz_profile)
         
         try:
             if self.provider == 'openai':
@@ -76,13 +77,13 @@ class LLMService:
                         {"role": "user", "content": prompt}
                     ],
                     temperature=0.7,
-                    max_tokens=300  # Reduziert für Szenario-Zusammenfassungen (weniger wichtig)
+                    max_tokens=220  # Kürzer für Szenario-Zusammenfassungen
                 )
                 return response.choices[0].message.content.strip()
             else:  # Gemini
                 full_prompt = f"{self._get_system_prompt()}\n\n{prompt}"
                 generation_config = genai.types.GenerationConfig(
-                    max_output_tokens=300,  # Reduziert für Szenario-Zusammenfassungen
+                    max_output_tokens=220,
                     temperature=0.7
                 )
                 response = self.model.generate_content(full_prompt, generation_config=generation_config)
@@ -96,7 +97,8 @@ class LLMService:
                                       user_goal: Optional[str] = None,
                                       user_profession: Optional[str] = None,
                                       user_about_me: Optional[str] = None,
-                                      user_financial_goals: Optional[str] = None) -> str:
+                                      user_financial_goals: Optional[str] = None,
+                                      quiz_profile: Optional[Dict[str, str]] = None) -> str:
         """
         Generiert eine Plausibilitätsanalyse für alle Szenarien.
         
@@ -107,7 +109,7 @@ class LLMService:
         Returns:
             Plausibilitätsanalyse als String
         """
-        prompt = self._build_plausibility_prompt(scenarios, finance_data, user_goal, user_profession, user_about_me, user_financial_goals)
+        prompt = self._build_plausibility_prompt(scenarios, finance_data, user_goal, user_profession, user_about_me, user_financial_goals, quiz_profile)
         
         try:
             if self.provider == 'openai':
@@ -118,7 +120,7 @@ class LLMService:
                         {"role": "user", "content": prompt}
                     ],
                     temperature=0.7,
-                    max_tokens=500  # Reduziert für 2 Absätze (max. 150 Wörter)
+                    max_tokens=350  # 2 Absätze, ca. 100 Wörter
                 )
                 result = response.choices[0].message.content.strip()
                 print(f"📊 Plausibilitätsanalyse erhalten: {len(result)} Zeichen")
@@ -132,7 +134,7 @@ class LLMService:
             else:  # Gemini
                 full_prompt = f"{self._get_system_prompt()}\n\n{prompt}"
                 generation_config = genai.types.GenerationConfig(
-                    max_output_tokens=500,  # Reduziert für 2 Absätze (max. 150 Wörter)
+                    max_output_tokens=350,
                     temperature=0.7
                 )
                 response = self.model.generate_content(full_prompt, generation_config=generation_config)
@@ -159,7 +161,8 @@ class LLMService:
                      user_goal: Optional[str] = None,
                      user_profession: Optional[str] = None,
                      user_about_me: Optional[str] = None,
-                     user_financial_goals: Optional[str] = None) -> str:
+                     user_financial_goals: Optional[str] = None,
+                     quiz_profile: Optional[Dict[str, str]] = None) -> str:
         """
         Generiert personalisierte Finanztipps basierend auf den Daten.
         
@@ -172,7 +175,7 @@ class LLMService:
         Returns:
             Liste von Tipps als String
         """
-        prompt = self._build_tips_prompt(finance_data, user_goal, user_profession, user_about_me, user_financial_goals)
+        prompt = self._build_tips_prompt(finance_data, user_goal, user_profession, user_about_me, user_financial_goals, quiz_profile)
         
         try:
             if self.provider == 'openai':
@@ -183,7 +186,7 @@ class LLMService:
                         {"role": "user", "content": prompt}
                     ],
                     temperature=0.8,
-                    max_tokens=1500  # Reduziert für kompaktere Antworten
+                    max_tokens=900  # Kompaktere Antworten
                 )
                 result = response.choices[0].message.content.strip()
                 print(f"📊 Tipps erhalten: {len(result)} Zeichen")
@@ -197,7 +200,7 @@ class LLMService:
             else:  # Gemini
                 full_prompt = f"{self._get_system_prompt()}\n\n{prompt}"
                 generation_config = genai.types.GenerationConfig(
-                    max_output_tokens=2000,  # Reduziert für kompaktere Antworten
+                    max_output_tokens=1200,
                     temperature=0.8
                 )
                 response = self.model.generate_content(full_prompt, generation_config=generation_config)
@@ -234,13 +237,42 @@ Anforderungen:
 - Antworte immer auf Deutsch
 - Verwende Emojis sparsam, nur wenn es die Verständlichkeit verbessert
 - Strukturiere deine Antworten klar mit Absätzen und ggf. Aufzählungen für bessere Lesbarkeit"""
+
+    def _format_quiz_profile(self, quiz_profile: Optional[Dict[str, str]]) -> str:
+        """Convert quiz answers into prompt-friendly context."""
+        if not quiz_profile:
+            return ""
+        label_map = {
+            "profession": "Beruf",
+            "net_income": "Netto-Einkommen",
+            "fixed_costs": "Fixkosten",
+            "main_goal": "Hauptziel",
+            "risk_profile": "Risikotyp",
+            "savings_rate": "Sparquote",
+            "emergency_buffer": "Notgroschen",
+            "debt_status": "Schuldenstatus",
+            "investment_style": "Investitionsstil",
+            "time_horizon": "Zeithorizont",
+        }
+        details = []
+        for key, label in label_map.items():
+            value = quiz_profile.get(key)
+            if value:
+                details.append(f"{label}: {value}")
+        extras = [f"{k}: {v}" for k, v in quiz_profile.items() if k not in label_map and quiz_profile.get(k)]
+        if extras:
+            details.extend(extras)
+        if details:
+            return "\nQuiz-Daten des Benutzers: " + "; ".join(details)
+        return ""
     
     def _build_scenario_prompt(self, scenario: ScenarioResult, 
                               finance_data: ParsedFinanceData,
                               user_goal: Optional[str] = None,
                               user_profession: Optional[str] = None,
                               user_about_me: Optional[str] = None,
-                              user_financial_goals: Optional[str] = None) -> str:
+                              user_financial_goals: Optional[str] = None,
+                              quiz_profile: Optional[Dict[str, str]] = None) -> str:
         """Prompt-Template für Szenario-Zusammenfassungen"""
         goal_context = f"\n\nBenutzerziel: {user_goal}" if user_goal else ""
         
@@ -251,6 +283,9 @@ Anforderungen:
             user_context += f"\nZusätzliche Informationen über den Benutzer: {user_about_me}"
         if user_financial_goals:
             user_context += f"\nFinanzielle Ziele des Benutzers: {user_financial_goals}"
+        quiz_context = self._format_quiz_profile(quiz_profile)
+        if quiz_context:
+            user_context += quiz_context
         if user_context:
             user_context += "\nBerücksichtige diese Informationen bei der Analyse und passe die Empfehlungen entsprechend an. Besonders wichtig sind die finanziellen Ziele des Benutzers - analysiere, ob das Szenario diese Ziele unterstützt."
         
@@ -279,7 +314,8 @@ Antworte nur mit der Zusammenfassung, ohne zusätzliche Erklärungen."""
                                   user_goal: Optional[str] = None,
                                   user_profession: Optional[str] = None,
                                   user_about_me: Optional[str] = None,
-                                  user_financial_goals: Optional[str] = None) -> str:
+                                  user_financial_goals: Optional[str] = None,
+                                  quiz_profile: Optional[Dict[str, str]] = None) -> str:
         """Prompt-Template für Plausibilitätsanalyse"""
         best = scenarios['best_case']
         worst = scenarios['worst_case']
@@ -294,6 +330,9 @@ Antworte nur mit der Zusammenfassung, ohne zusätzliche Erklärungen."""
             user_context += f"\nZusätzliche Informationen über den Benutzer: {user_about_me}"
         if user_financial_goals:
             user_context += f"\nFinanzielle Ziele des Benutzers: {user_financial_goals}"
+        quiz_context = self._format_quiz_profile(quiz_profile)
+        if quiz_context:
+            user_context += quiz_context
         if user_context:
             user_context += "\nBerücksichtige diese Informationen bei der Plausibilitätsbewertung. Wie beeinflussen Beruf, persönliche Situation und vor allem die finanziellen Ziele die Realisierbarkeit der Szenarien? Bewerte, ob die Szenarien helfen, die finanziellen Ziele des Benutzers zu erreichen."
         
@@ -301,46 +340,28 @@ Antworte nur mit der Zusammenfassung, ohne zusätzliche Erklärungen."""
         
         # Berechne zusätzliche Metriken für tiefere Analyse
         savings_rate = ((finance_data.monthly_averages['income'] - finance_data.monthly_averages['expenses']) / finance_data.monthly_averages['income'] * 100) if finance_data.monthly_averages['income'] > 0 else 0
-        top_categories = sorted(finance_data.categories.items(), key=lambda x: x[1], reverse=True)[:5]
-        category_breakdown = ', '.join([f"{cat}: {amt:.2f} €" for cat, amt in top_categories])
+        top_categories = sorted(finance_data.categories.items(), key=lambda x: x[1], reverse=True)[:3]
+        category_breakdown = ', '.join([f"{cat}: {amt:.0f} €" for cat, amt in top_categories]) or "keine auffälligen Kategorien"
         
-        return f"""Erstelle eine PROFESSIONELLE, TIEFGREIFENDE aber LACONISCHE Plausibilitätsanalyse dieser drei Finanzszenarien:{goal_context}
+        return f"""Erstelle eine knappe Plausibilitätsanalyse der drei Szenarien:{goal_context}
 
-Szenario-Daten:
-1. BEST CASE: {best.monthly_savings:.2f} €/Monat → {best.final_balance:.2f} € nach 12 Monaten
-2. WORST CASE: {worst.monthly_savings:.2f} €/Monat → {worst.final_balance:.2f} € nach 12 Monaten  
-3. REALISTIC CASE: {realistic.monthly_savings:.2f} €/Monat → {realistic.final_balance:.2f} € nach 12 Monaten
+Szenario-Überblick:
+- Best: {best.monthly_savings:.2f} €/Monat → {best.final_balance:.2f} €
+- Realistic: {realistic.monthly_savings:.2f} €/Monat → {realistic.final_balance:.2f} €
+- Worst: {worst.monthly_savings:.2f} €/Monat → {worst.final_balance:.2f} €
+- Sparrate aktuell: {savings_rate:.1f}% ({finance_data.monthly_averages['income'] - finance_data.monthly_averages['expenses']:.2f} €)
+- Größte Ausgabenfelder: {category_breakdown}
 
-Historische Basis:
-- Monatliche Einnahmen: {finance_data.monthly_averages['income']:.2f} €
-- Monatliche Ausgaben: {finance_data.monthly_averages['expenses']:.2f} €
-- Sparrate: {savings_rate:.1f}% ({finance_data.monthly_averages['income'] - finance_data.monthly_averages['expenses']:.2f} €)
-- Top Ausgaben: {category_breakdown}
-
-WICHTIG - STRUKTURIERTES FORMAT (GENAU 2 ABSÄTZE):
-1. ERSTER ABSATZ (3-4 Sätze): Bewerte, welches Szenario am realistischsten ist im Kontext des Benutzerziels: "{user_goal if user_goal else 'Allgemeine Finanzplanung'}". Erkläre kurz, warum dieses Szenario am wahrscheinlichsten ist und wie es mit dem Ziel zusammenhängt.
-
-2. ZWEITER ABSATZ (3-4 Sätze): Analysiere die Risiken und Chancen. Nutze Emojis sparsam INNERHALB des Textes wenn nötig (z.B. ⚠️ für Risiken, 🎯 für Ziele, 💡 für Empfehlungen, etc.).
-
-KEINE Bulletpoints, NUR 2 zusammenhängende Absätze mit fließendem Text. Jeder Absatz sollte 3-4 Sätze enthalten. Insgesamt max. 150 Wörter.
-
-BEISPIEL-STRUKTUR (2 ABSÄTZE):
-
-ABSATZ 1:
-Der "Realistic Case" scheint der plausibelste, erfordert aber Anpassungen, um die Autokosten zu decken und die langfristigen Ziele nicht zu gefährden. Basierend auf deiner aktuellen Sparrate von {savings_rate:.1f}% und deinem Ziel "{user_goal if user_goal else 'Allgemeine Finanzplanung'}" ist dieses Szenario am wahrscheinlichsten, da es realistische Annahmen über Einnahmen und Ausgaben trifft.
-
-ABSATZ 2:
-⚠️ Das realistische Szenario lässt wenig Spielraum für unerwartete Ausgaben oder Schwankungen im Einkommen. Überprüfe die "Freizeit"-Ausgaben und andere variable Kosten, um Sparpotentiale zu identifizieren (z.B. 50-100€/Monat). 🎯 Eine monatliche Auto-Rate von 500€ ist im "Realistic Case" potenziell machbar, erfordert aber Disziplin und Priorisierung der finanziellen Ziele.
-
-WICHTIG: Antworte NUR mit 2 Absätzen, keine Bulletpoints, keine Nummerierung. Emojis können INNERHALB текста verwendet werden, aber sparsam.
-
-Antworte NUR mit der Analyse in diesem Format, keine zusätzlichen Erklärungen oder Überschriften."""
+Schreibe GENAU zwei Absätze (je 3-4 Sätze, gesamt 90-120 Wörter):
+Absatz 1: Welches Szenario ist am plausibelsten und warum? Verknüpfe es direkt mit dem Ziel.
+Absatz 2: Welche Risiken/Chancen folgen daraus? Maximal 1-2 Emojis innerhalb des Textes, keine Bulletpoints."""
     
     def _build_tips_prompt(self, finance_data: ParsedFinanceData, 
                           user_goal: Optional[str] = None,
                           user_profession: Optional[str] = None,
                           user_about_me: Optional[str] = None,
-                          user_financial_goals: Optional[str] = None) -> str:
+                          user_financial_goals: Optional[str] = None,
+                          quiz_profile: Optional[Dict[str, str]] = None) -> str:
         """Prompt-Template für personalisierte Tipps"""
         top_categories = sorted(
             finance_data.categories.items(),
@@ -357,6 +378,9 @@ Antworte NUR mit der Analyse in diesem Format, keine zusätzlichen Erklärungen 
             user_context += f"\nZusätzliche Informationen über den Benutzer: {user_about_me}"
         if user_financial_goals:
             user_context += f"\nFinanzielle Ziele des Benutzers: {user_financial_goals}"
+        quiz_context = self._format_quiz_profile(quiz_profile)
+        if quiz_context:
+            user_context += quiz_context
         if user_context:
             user_context += "\nBerücksichtige diese Informationen bei den Tipps. Passe die Empfehlungen an den Beruf, die persönliche Situation und VOR ALLEM an die finanziellen Ziele des Benutzers an. Die Tipps sollten konkret helfen, die finanziellen Ziele zu erreichen. Welche spezifischen Möglichkeiten oder Herausforderungen ergeben sich aus dem Beruf, den persönlichen Umständen und den Zielen?"
         
@@ -369,76 +393,23 @@ Antworte NUR mit der Analyse in diesem Format, keine zusätzlichen Erklärungen 
         total_income = finance_data.total_income
         expense_ratio = (total_expenses / total_income * 100) if total_income > 0 else 0
         
-        # Erweitere Kategorien-Liste
-        all_categories = sorted(finance_data.categories.items(), key=lambda x: x[1], reverse=True)
-        category_details = '\n'.join([f"  - {cat}: {amt:.2f} € ({amt/total_expenses*100:.1f}% der Gesamtausgaben)" for cat, amt in all_categories[:8]])
+        # Kurzfassung für Ausgabenkategorien (max. 4)
+        top_spend = sorted(finance_data.categories.items(), key=lambda x: x[1], reverse=True)[:4]
+        category_details = ', '.join([f"{cat}: {amt:.0f} € ({amt/total_expenses*100:.1f}%)" for cat, amt in top_spend]) or "keine dominanten Kategorien"
         
-        return f"""Erstelle PROFESSIONELLE, TIEFGREIFENDE aber LACONISCHE personalisierte Finanztipps basierend auf diesen Finanzdaten:{goal_context}
+        return f"""Erstelle kompakte, priorisierte Finanztipps basierend auf diesen Daten:{goal_context}
 
-Finanzübersicht:
-- Monatliche Einnahmen (Durchschnitt): {finance_data.monthly_averages['income']:.2f} €
-- Monatliche Ausgaben (Durchschnitt): {finance_data.monthly_averages['expenses']:.2f} €
-- Monatliche Ersparnisse: {monthly_savings:.2f} €
-- Sparrate: {savings_rate:.1f}% des Einkommens
-- Gesamteinnahmen (historisch): {total_income:.2f} €
-- Gesamtausgaben (historisch): {total_expenses:.2f} €
-- Aktuelles Guthaben: {finance_data.net_balance:.2f} €
+Finanzüberblick:
+- Einnahmen ∅: {finance_data.monthly_averages['income']:.2f} € | Ausgaben ∅: {finance_data.monthly_averages['expenses']:.2f} €
+- Ersparnis ∅: {monthly_savings:.2f} € (Sparrate {savings_rate:.1f}%)
+- Top-Ausgaben: {category_details}
 
-Detaillierte Ausgabenverteilung:
-{category_details}
+Antwortstruktur:
+1. Kurzes Fazit (2 Sätze) – Kann das Ziel erreicht werden?
+2. Direkte Antwort auf die Frage (1 Satz + 2 Bulletpoints mit ✓/⚠️/💡)
+3. GENAU 6 Tipps im Format „Emoji Titel – 1 kurzer Satz“ (wichtigste zuerst, direkt auf das Ziel bezogen).
 
-WICHTIG: 
-- Sei PROFESSIONELL und TIEFGREIFEND, aber LACONISCH
-- Analysiere Zusammenhänge zwischen Ausgaben, Einnahmen und Zielen
-- Gib GENAU 6 personalisierte, priorisierte Tipps
-- Jeder Tipp muss DIREKT auf das Benutzerziel eingehen
-- Nutze passende Emojis für jeden Tipp
-
-Erstelle deine Antwort in folgender Struktur:
-
-1. FAZIT (2-3 prägnante Sätze):
-   - Kann der Benutzer sein Ziel erreichen? Ja/Nein/Teilweise mit Begründung
-   - Basierend auf aktueller finanzieller Situation und Sparrate
-   - KEINE Prozentwerte, nur klare Aussagen
-
-2. ANTWORT AUF DIE FRAGE (kurze Einleitung + 2-3 prägnante Bulletpoints):
-   - 1-2 Sätze Zusammenfassung der Antwort
-   - 2-3 Bulletpoints mit konkreten, umsetzbaren Antworten
-   - Nutze Emojis: ✓ für positive Aspekte, ⚠️ für Warnungen, 💡 für Erkenntnisse
-
-3. PERSONALISIERTE TIPPS (GENAU 6 Tipps, format wie unten):
-   - Jeder Tipp: Emoji + Kurzer Titel (max. 6 Wörter) + 1-2 prägnante Sätze
-   - PRIORISIERT (wichtigste zuerst)
-   - Konkret, umsetzbar, direkt auf Ziel bezogen
-   - Nutze passende Emojis: 💰 Sparen, ✂️ Ausgaben senken, 📊 Budget, 🧱 Notgroschen, 🚀 Investieren, 🔍 Analysieren, 📈 Einnahmen erhöhen, ⏰ Zeitplan, 🎯 Zielsetzung, 💳 Kredit/Darlehen, 🏠 Wohnen, 🚗 Auto, ✈️ Reisen
-
-Format für TIPPS (GENAU 6):
-1. [Emoji] [Kurzer Titel] - [1-2 prägnante Sätze, direkt auf Ziel bezogen]
-2. [Emoji] [Kurzer Titel] - [1-2 prägnante Sätze, direkt auf Ziel bezogen]
-3. [Emoji] [Kurzer Titel] - [1-2 prägnante Sätze, direkt auf Ziel bezogen]
-4. [Emoji] [Kurzer Titel] - [1-2 prägnante Sätze, direkt auf Ziel bezogen]
-5. [Emoji] [Kurzer Titel] - [1-2 prägnante Sätze, direkt auf Ziel bezogen]
-6. [Emoji] [Kurzer Titel] - [1-2 prägnante Sätze, direkt auf Ziel bezogen]
-
-Beispiel-Struktur:
-FAZIT: [2-3 prägnante Sätze]
-
-ANTWORT AUF DIE FRAGE:
-[1-2 Sätze Einleitung]
-
-• ✓ [Konkrete Antwort 1]
-• ⚠️ [Konkrete Antwort 2]
-• 💡 [Konkrete Antwort 3]
-
-TIPPS:
-1. 💰 [Titel] - [1-2 Sätze]
-2. ✂️ [Titel] - [1-2 Sätze]
-3. 📊 [Titel] - [1-2 Sätze]
-4. 🧱 [Titel] - [1-2 Sätze]
-5. 🚀 [Titel] - [1-2 Sätze]
-6. 🔍 [Titel] - [1-2 Sätze]
-
-Wichtig: PROFESSIONELL, TIEFGREIFEND, aber LACONISCH. Direkt auf den Punkt kommen."""
+Sprache klar und motivierend, insgesamt maximal 220 Wörter."""
     
     def _generate_fallback_summary(self, scenario: ScenarioResult) -> str:
         """Fallback-Zusammenfassung ohne LLM"""
@@ -460,7 +431,8 @@ als Vorsichtsmaßnahme dient. Plane am besten mit dem Realistic Case."""
                                    user_goal: Optional[str] = None,
                                    user_profession: Optional[str] = None,
                                    user_about_me: Optional[str] = None,
-                                   user_financial_goals: Optional[str] = None) -> str:
+                                   user_financial_goals: Optional[str] = None,
+                                   quiz_profile: Optional[Dict[str, str]] = None) -> str:
         """Generiert eine kurze Analyse aller 3 Szenarien"""
         goal_context = f"\n\nBenutzerziel: {user_goal}" if user_goal else ""
         
@@ -471,6 +443,9 @@ als Vorsichtsmaßnahme dient. Plane am besten mit dem Realistic Case."""
             user_context += f"\nPersönliche Info: {user_about_me}"
         if user_financial_goals:
             user_context += f"\nFinanzielle Ziele: {user_financial_goals}"
+        quiz_context = self._format_quiz_profile(quiz_profile)
+        if quiz_context:
+            user_context += quiz_context
         
         prompt = f"""Erstelle eine KURZE, PRÄGNANTE Analyse der drei Finanzszenarien auf Deutsch:{goal_context}{user_context}
 
@@ -497,13 +472,13 @@ Antworte NUR mit der Analyse, sehr kurz und prägnant."""
                         {"role": "user", "content": prompt}
                     ],
                     temperature=0.7,
-                    max_tokens=400
+                    max_tokens=250
                 )
                 return response.choices[0].message.content.strip()
             else:  # Gemini
                 full_prompt = f"{self._get_system_prompt()}\n\n{prompt}"
                 generation_config = genai.types.GenerationConfig(
-                    max_output_tokens=400,
+                    max_output_tokens=250,
                     temperature=0.7
                 )
                 response = self.model.generate_content(full_prompt, generation_config=generation_config)
@@ -517,7 +492,8 @@ Antworte NUR mit der Analyse, sehr kurz und prägnant."""
                         user_goal: Optional[str] = None,
                         user_profession: Optional[str] = None,
                         user_about_me: Optional[str] = None,
-                        user_financial_goals: Optional[str] = None) -> str:
+                        user_financial_goals: Optional[str] = None,
+                        quiz_profile: Optional[Dict[str, str]] = None) -> str:
         """Generiert eine abschließende Zusammenfassung/Итоги"""
         goal_context = f"\n\nBenutzerziel: {user_goal}" if user_goal else ""
         
@@ -528,6 +504,9 @@ Antworte NUR mit der Analyse, sehr kurz und prägnant."""
             user_context += f"\nPersönliche Info: {user_about_me}"
         if user_financial_goals:
             user_context += f"\nFinanzielle Ziele: {user_financial_goals}"
+        quiz_context = self._format_quiz_profile(quiz_profile)
+        if quiz_context:
+            user_context += quiz_context
         
         savings_rate = ((finance_data.monthly_averages['income'] - finance_data.monthly_averages['expenses']) / finance_data.monthly_averages['income'] * 100) if finance_data.monthly_averages['income'] > 0 else 0
         
@@ -553,13 +532,13 @@ Antworte NUR mit der Zusammenfassung, sehr kurz und prägnant."""
                         {"role": "user", "content": prompt}
                     ],
                     temperature=0.7,
-                    max_tokens=300
+                    max_tokens=220
                 )
                 return response.choices[0].message.content.strip()
             else:  # Gemini
                 full_prompt = f"{self._get_system_prompt()}\n\n{prompt}"
                 generation_config = genai.types.GenerationConfig(
-                    max_output_tokens=300,
+                    max_output_tokens=220,
                     temperature=0.7
                 )
                 response = self.model.generate_content(full_prompt, generation_config=generation_config)
@@ -573,7 +552,8 @@ Antworte NUR mit der Zusammenfassung, sehr kurz und prägnant."""
                              user_goal: Optional[str] = None,
                              user_profession: Optional[str] = None,
                              user_about_me: Optional[str] = None,
-                             user_financial_goals: Optional[str] = None) -> str:
+                             user_financial_goals: Optional[str] = None,
+                             quiz_profile: Optional[Dict[str, str]] = None) -> str:
         """Generiert detaillierte Informationen zu einem spezifischen Tipp"""
         goal_context = f"\n\nBenutzerziel: {user_goal}" if user_goal else ""
         
@@ -584,46 +564,29 @@ Antworte NUR mit der Zusammenfassung, sehr kurz und prägnant."""
             user_context += f"\nPersönliche Info: {user_about_me}"
         if user_financial_goals:
             user_context += f"\nFinanzielle Ziele: {user_financial_goals}"
+        quiz_context = self._format_quiz_profile(quiz_profile)
+        if quiz_context:
+            user_context += quiz_context
         
         monthly_savings = finance_data.monthly_averages['income'] - finance_data.monthly_averages['expenses']
         savings_rate = (monthly_savings / finance_data.monthly_averages['income'] * 100) if finance_data.monthly_averages['income'] > 0 else 0
         
-        prompt = f"""Erstelle eine KURZE, PRÄGNANTE aber TIEFGREIFENDE Erklärung zu folgendem Finanztipp auf Deutsch:{goal_context}{user_context}
+        prompt = f"""Erkläre kompakt, warum dieser Tipp relevant ist und wie er umgesetzt werden kann:{goal_context}{user_context}
 
 TIP:
 Titel: {tip_title}
 Beschreibung: {tip_description}
 
 Finanzkontext:
-- Monatliche Einnahmen: {finance_data.monthly_averages['income']:.2f} €
-- Monatliche Ausgaben: {finance_data.monthly_averages['expenses']:.2f} €
-- Monatliche Ersparnisse: {monthly_savings:.2f} €
-- Sparrate: {savings_rate:.1f}%
+- Einnahmen ∅: {finance_data.monthly_averages['income']:.2f} € | Ausgaben ∅: {finance_data.monthly_averages['expenses']:.2f} €
+- Ersparnisse ∅: {monthly_savings:.2f} € (Sparrate {savings_rate:.1f}%)
 
-WICHTIG - STRENGE BEGRENZUNG:
-- MAXIMAL 3 ABSÄTZE (sehr kurz!)
-- Jeder Absatz: 3-5 Sätze
-- Insgesamt max. 200 Wörter
-- Erkläre WARUM dieser Tipp wichtig ist
-- Gib KONKRETE, UMSETZBARE Schritte mit Zahlen
-- Nutze Emojis sparsam: ⚠️ für Warnungen, 💡 für Tipps, ✅ für Vorteile, 📊 für Daten, 🎯 für Ziele
-- Beziehe dich direkt auf das Benutzerziel: {user_goal if user_goal else 'Allgemeine Finanzplanung'}
-
-FORMAT (GENAU 3 ABSÄTZE):
-Absatz 1 (2-3 Sätze): Warum ist dieser Tipp wichtig? Was ist das Problem oder die Chance?
-
-Absatz 2 (3-4 Sätze): Konkrete Schritte und Umsetzung. Nutze Bulletpoints mit Emojis wenn nötig (• 💡 Schritt 1, • ✅ Schritt 2).
-
-Absatz 3 (2-3 Sätze): Erwartete Ergebnisse, Zeitrahmen und Zusammenhang mit deinem Ziel.
-
-BEISPIEL-STRUKTUR:
-Der Vergleich von Kreditkonditionen ist entscheidend, um unnötige Zinszahlungen zu vermeiden. Gerade als Studentin mit langfristigen Sparzielen ist es wichtig, jeden Euro optimal einzusetzen.
-
-Konkret bedeutet das: Bevor du einen Autokredit aufnimmst, solltest du Angebote von verschiedenen Banken einholen. • 💡 Achte nicht nur auf den Nominalzins, sondern auch auf den effektiven Jahreszins. • ✅ Vergleiche die Laufzeiten und prüfe, ob Sondertilgungen möglich sind. Nutze Vergleichsportale wie Check24 oder Verivox.
-
-Da du monatlich {monthly_savings:.2f} € sparst, könntest du alternativ prüfen, ob du den Autokauf durch weiteres Sparen hinauszögern kannst. Das spart dir nicht nur Zinsen, sondern gibt dir auch mehr Verhandlungsspielraum beim Autokauf.
-
-Antworte NUR mit 3 Absätzen, keine Überschriften, keine Nummerierung."""
+Anweisungen:
+- Maximal 2 Absätze, jeweils 3 Sätze (insgesamt < 140 Wörter)
+- Absatz 1: Wirkung und Relevanz des Tipps im Kontext des Ziels
+- Absatz 2: 2-3 konkrete Umsetzungsschritte (Zahlen nennen, falls sinnvoll)
+- Höchstens 2 Emojis innerhalb des Textes (⚠️, 💡, ✅, 🎯)
+- Keine Bulletpoints, keine Überschriften."""
         
         try:
             if self.provider == 'openai':
@@ -634,13 +597,13 @@ Antworte NUR mit 3 Absätzen, keine Überschriften, keine Nummerierung."""
                         {"role": "user", "content": prompt}
                     ],
                     temperature=0.7,
-                    max_tokens=400  # Reduziert für kürzere Antworten (3 Absätze)
+                    max_tokens=280  # Kürzere Antworten
                 )
                 return response.choices[0].message.content.strip()
             else:  # Gemini
                 full_prompt = f"{self._get_system_prompt()}\n\n{prompt}"
                 generation_config = genai.types.GenerationConfig(
-                    max_output_tokens=400,  # Reduziert für kürzere Antworten
+                    max_output_tokens=280,
                     temperature=0.7
                 )
                 response = self.model.generate_content(full_prompt, generation_config=generation_config)

@@ -2,7 +2,7 @@
 Pydantic schemas for request/response validation
 """
 from pydantic import BaseModel, field_validator
-from typing import Optional
+from typing import Optional, Dict
 import re
 
 
@@ -53,6 +53,7 @@ class UserResponse(BaseModel):
     profession: Optional[str] = None
     about_me: Optional[str] = None
     financial_goals: Optional[str] = None
+    quiz_profile: Optional[Dict[str, str]] = None
     is_active: bool
 
     class Config:
@@ -65,6 +66,13 @@ class UserUpdate(BaseModel):
     profession: Optional[str] = None
     about_me: Optional[str] = None
     financial_goals: Optional[str] = None
+    quiz_profile: Optional[Dict[str, str]] = None
+
+
+class QuizProfileUpdate(BaseModel):
+    """Schema for quiz profile submissions"""
+    quiz_profile: Dict[str, str]
+    profession: Optional[str] = None
 
 
 class AnalysisHistoryCreate(BaseModel):

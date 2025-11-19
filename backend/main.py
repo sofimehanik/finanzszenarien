@@ -17,12 +17,21 @@ from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 
 from services.csv_parser import CSVParser, ParsedFinanceData
-from services.scenario_calculator import ScenarioCalculator
+from services.scenario_calculator import ScenarioCalculator, ScenarioResult
 from services.llm_service import LLMService
 from services.auth_service import AuthService
 from database import get_db, init_db
 from models import User, AnalysisHistory
-from schemas import UserRegister, UserLogin, Token, UserResponse, UserUpdate, AnalysisHistoryCreate, AnalysisHistoryResponse
+from schemas import (
+    UserRegister,
+    UserLogin,
+    Token,
+    UserResponse,
+    UserUpdate,
+    AnalysisHistoryCreate,
+    AnalysisHistoryResponse,
+    QuizProfileUpdate,
+)
 import json
 
 # Load environment variables from .env file in backend directory
@@ -75,6 +84,17 @@ app.mount("/avatars", StaticFiles(directory=str(avatars_dir)), name="avatars")
 security = HTTPBearer(auto_error=False)
 
 
+def build_local_scenario_summary(scenario: ScenarioResult, user_goal: Optional[str]) -> str:
+    """Create a lightweight scenario summary without LLM usage."""
+    goal_phrase = f" im Hinblick auf dein Ziel „{user_goal}“" if user_goal else ""
+    trend = "positiv" if scenario.monthly_savings >= 0 else "kritisch"
+    return (
+        f"{scenario.title}{goal_phrase} prognostiziert {scenario.monthly_savings:.2f} € pro Monat "
+        f"und {scenario.final_balance:.2f} € nach 12 Monaten. "
+        f"Damit bleibt dein Cashflow {trend}; plane Puffer für Schwankungen ein."
+    )
+
+
 def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     db: Session = Depends(get_db)
@@ -95,6 +115,27 @@ def get_current_user(
         return None
     user = AuthService.get_user_by_id(db, user_id=user_id)
     return user
+
+
+def serialize_user_response(user: User) -> UserResponse:
+    """Helper to convert User model to response schema with quiz profile."""
+    quiz_profile = None
+    if user.quiz_profile:
+        try:
+            quiz_profile = json.loads(user.quiz_profile)
+        except Exception:
+            quiz_profile = None
+    return UserResponse(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        avatar_url=user.avatar_url,
+        profession=user.profession,
+        about_me=user.about_me,
+        financial_goals=user.financial_goals,
+        quiz_profile=quiz_profile,
+        is_active=user.is_active
+    )
 
 
 @app.get("/")
@@ -166,16 +207,7 @@ async def get_current_user_info(
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return UserResponse(
-        id=current_user.id,
-        email=current_user.email,
-        full_name=current_user.full_name,
-        avatar_url=current_user.avatar_url,
-        profession=current_user.profession,
-        about_me=current_user.about_me,
-        financial_goals=current_user.financial_goals,
-        is_active=current_user.is_active
-    )
+    return serialize_user_response(current_user)
 
 
 @app.put("/api/auth/profile", response_model=UserResponse)
@@ -200,20 +232,13 @@ async def update_user_profile(
         current_user.about_me = user_update.about_me
     if user_update.financial_goals is not None:
         current_user.financial_goals = user_update.financial_goals
+    if user_update.quiz_profile is not None:
+        current_user.quiz_profile = json.dumps(user_update.quiz_profile)
     
     db.commit()
     db.refresh(current_user)
     
-    return UserResponse(
-        id=current_user.id,
-        email=current_user.email,
-        full_name=current_user.full_name,
-        avatar_url=current_user.avatar_url,
-        profession=current_user.profession,
-        about_me=current_user.about_me,
-        financial_goals=current_user.financial_goals,
-        is_active=current_user.is_active
-    )
+    return serialize_user_response(current_user)
 
 
 @app.post("/api/auth/avatar")
@@ -265,6 +290,29 @@ async def upload_avatar(
     db.refresh(current_user)
     
     return {"avatar_url": avatar_url}
+
+
+@app.post("/api/quiz/profile", response_model=UserResponse)
+async def save_quiz_profile(
+    quiz_update: QuizProfileUpdate,
+    current_user: Optional[User] = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Save quiz-based finance profile for the user."""
+    if current_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated"
+        )
+    
+    if quiz_update.profession:
+        current_user.profession = quiz_update.profession
+    
+    current_user.quiz_profile = json.dumps(quiz_update.quiz_profile)
+    db.commit()
+    db.refresh(current_user)
+    
+    return serialize_user_response(current_user)
 
 
 @app.post("/api/analysis/save", response_model=AnalysisHistoryResponse)
@@ -426,6 +474,12 @@ async def get_tip_details(
     user_profession = current_user.profession if current_user else None
     user_about_me = current_user.about_me if current_user else None
     user_financial_goals = current_user.financial_goals if current_user else None
+    quiz_profile = None
+    if current_user and current_user.quiz_profile:
+        try:
+            quiz_profile = json.loads(current_user.quiz_profile)
+        except Exception:
+            quiz_profile = None
     
     try:
         details = llm_service.generate_tip_details(
@@ -435,7 +489,8 @@ async def get_tip_details(
             user_goal=user_goal,
             user_profession=user_profession,
             user_about_me=user_about_me,
-            user_financial_goals=user_financial_goals
+            user_financial_goals=user_financial_goals,
+            quiz_profile=quiz_profile
         )
         
         if not details:
@@ -578,7 +633,10 @@ async def analyze_finances(
             )
         
         # LLM-Analysen (optional, mit Benutzerziel)
-        scenario_summaries = {}
+        scenario_summaries = {
+            key: build_local_scenario_summary(scenario, user_goal)
+            for key, scenario in scenarios.items()
+        }
         plausibility_analysis = None
         tips = None
         scenario_analysis = None
@@ -601,49 +659,43 @@ async def analyze_finances(
                     user_profession = current_user.profession if current_user else None
                     user_about_me = current_user.about_me if current_user else None
                     user_financial_goals = current_user.financial_goals if current_user else None
-                    
-                    # Zusammenfassungen für jedes Szenario (kann parallel laufen)
-                    for key, scenario in scenarios.items():
-                        print(f"  - Starte Zusammenfassung für {key}...")
-                        futures[f'summary_{key}'] = executor.submit(
-                            llm_service.generate_scenario_summary,
-                            scenario, finance_data, user_goal, user_profession, user_about_me, user_financial_goals
-                        )
+                    quiz_profile = None
+                    if current_user and current_user.quiz_profile:
+                        try:
+                            quiz_profile = json.loads(current_user.quiz_profile)
+                        except Exception:
+                            quiz_profile = None
                     
                     # Plausibilitätsanalyse
                     print("  - Starte Plausibilitätsanalyse...")
                     futures['plausibility'] = executor.submit(
                         llm_service.generate_plausibility_analysis,
-                        scenarios, finance_data, user_goal, user_profession, user_about_me, user_financial_goals
+                        scenarios, finance_data, user_goal, user_profession, user_about_me, user_financial_goals, quiz_profile
                     )
                     
                     # Tipps
                     print("  - Starte Tipps-Generierung...")
                     futures['tips'] = executor.submit(
                         llm_service.generate_tips,
-                        finance_data, user_goal, user_profession, user_about_me, user_financial_goals
+                        finance_data, user_goal, user_profession, user_about_me, user_financial_goals, quiz_profile
                     )
                     
                     # Szenario-Analyse (kurze Analyse aller 3 Szenarien)
                     print("  - Starte Szenario-Analyse...")
                     futures['scenario_analysis'] = executor.submit(
                         llm_service.generate_scenario_analysis,
-                        scenarios, finance_data, user_goal, user_profession, user_about_me, user_financial_goals
+                        scenarios, finance_data, user_goal, user_profession, user_about_me, user_financial_goals, quiz_profile
                     )
                     
                     # Zusammenfassung/Итоги
                     print("  - Starte Zusammenfassung...")
                     futures['summary'] = executor.submit(
                         llm_service.generate_summary,
-                        scenarios, finance_data, user_goal, user_profession, user_about_me, user_financial_goals
+                        scenarios, finance_data, user_goal, user_profession, user_about_me, user_financial_goals, quiz_profile
                     )
                     
                     # Ergebnisse sammeln (warten auf alle)
                     print("  - Warte auf alle LLM-Antworten...")
-                    for key, scenario in scenarios.items():
-                        scenario_summaries[key] = futures[f'summary_{key}'].result()
-                        print(f"  ✅ Zusammenfassung für {key} erhalten")
-                    
                     plausibility_analysis = futures['plausibility'].result()
                     if plausibility_analysis:
                         print(f"  ✅ Plausibilitätsanalyse erhalten ({len(plausibility_analysis)} Zeichen)")

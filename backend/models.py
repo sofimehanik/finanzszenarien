@@ -19,6 +19,7 @@ class User(Base):
     profession = Column(String, nullable=True)  # User's profession
     about_me = Column(Text, nullable=True)  # Additional information about user
     financial_goals = Column(Text, nullable=True)  # User's financial goals
+    quiz_profile = Column(Text, nullable=True)  # Serialized quiz answers / profile
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
