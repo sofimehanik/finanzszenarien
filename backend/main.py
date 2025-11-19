@@ -23,6 +23,7 @@ from services.auth_service import AuthService
 from database import get_db, init_db
 from models import User, AnalysisHistory
 from schemas import (
+    AnalysisHistoryUpdate,
     UserRegister,
     UserLogin,
     Token,
@@ -403,6 +404,44 @@ async def get_analysis(
         )
     
     return json.loads(history.analysis_data)
+
+
+@app.put("/api/analysis/{analysis_id}", response_model=AnalysisHistoryResponse)
+async def update_analysis(
+    analysis_id: int,
+    update_data: AnalysisHistoryUpdate,
+    current_user: Optional[User] = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update analysis title"""
+    if current_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required"
+        )
+    
+    history = db.query(AnalysisHistory).filter(
+        AnalysisHistory.id == analysis_id,
+        AnalysisHistory.user_id == current_user.id
+    ).first()
+    
+    if not history:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Analysis not found"
+        )
+    
+    history.title = update_data.title
+    db.commit()
+    db.refresh(history)
+    
+    return AnalysisHistoryResponse(
+        id=history.id,
+        title=history.title,
+        user_goal=history.user_goal,
+        created_at=history.created_at.isoformat(),
+        updated_at=history.updated_at.isoformat() if history.updated_at else None
+    )
 
 
 @app.delete("/api/analysis/{analysis_id}")

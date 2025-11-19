@@ -123,6 +123,7 @@ export interface UserInfo {
   profession?: string;
   about_me?: string;
   financial_goals?: string;
+  quiz_profile?: Record<string, string>;
   is_active: boolean;
 }
 
@@ -131,6 +132,12 @@ export interface UserUpdate {
   profession?: string;
   about_me?: string;
   financial_goals?: string;
+  quiz_profile?: Record<string, string>;
+}
+
+export interface QuizProfilePayload {
+  quiz_profile: Record<string, string>;
+  profession?: string;
 }
 
 export interface SuggestedQuestions {
@@ -253,6 +260,27 @@ export async function updateUserProfile(data: UserUpdate): Promise<UserInfo> {
   return response.json();
 }
 
+export async function saveQuizProfile(payload: QuizProfilePayload): Promise<UserInfo> {
+  const response = await fetch(`${API_BASE_URL}/api/quiz/profile`, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error('Unauthorized');
+    }
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Failed to save quiz profile');
+  }
+
+  return response.json();
+}
+
 export async function getSuggestedQuestions(): Promise<SuggestedQuestions> {
   const response = await fetch(`${API_BASE_URL}/api/user/suggested-questions`, {
     method: 'GET',
@@ -345,6 +373,30 @@ export async function getAnalysisById(id: number): Promise<AnalysisResponse> {
     }
     const errorData = await response.json().catch(() => ({}));
     throw new Error(errorData.detail || 'Failed to get analysis');
+  }
+
+  return response.json();
+}
+
+export async function updateAnalysis(id: number, title: string): Promise<AnalysisHistoryItem> {
+  const response = await fetch(`${API_BASE_URL}/api/analysis/${id}`, {
+    method: 'PUT',
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ title }),
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error('Unauthorized');
+    }
+    if (response.status === 404) {
+      throw new Error('Analysis not found');
+    }
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Failed to update analysis');
   }
 
   return response.json();

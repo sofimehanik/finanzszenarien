@@ -93,3 +93,8 @@ class AnalysisHistoryResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
+class AnalysisHistoryUpdate(BaseModel):
+    """Schema for updating analysis history"""
+    title: str
+

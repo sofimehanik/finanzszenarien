@@ -1,20 +1,32 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import { useAuth } from "@/contexts/AuthContext"
 import { uploadAvatar, updateUserProfile } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { X, Upload, User, Save, Check, Sparkles } from "lucide-react"
+import { X, Upload, User, Save, Check, Sparkles, Edit2, Award } from "lucide-react"
 
 interface ProfileSettingsProps {
   open: boolean
   onClose: () => void
   onProfileSaved?: () => void
+  onOpenQuiz?: () => void
 }
 
-export function ProfileSettings({ open, onClose, onProfileSaved }: ProfileSettingsProps) {
+const QUIZ_FIELD_LABELS: Record<string, { label: string; emoji?: string }> = {
+  profession: { label: "Beruf", emoji: "💼" },
+  net_income: { label: "Netto-Einkommen", emoji: "💸" },
+  fixed_costs: { label: "Fixkosten", emoji: "🏠" },
+  main_goal: { label: "Hauptziel", emoji: "🎯" },
+  risk_profile: { label: "Risikoprofil", emoji: "🎲" },
+  savings_rate: { label: "Sparquote", emoji: "📈" },
+  emergency_buffer: { label: "Notgroschen", emoji: "💰" },
+}
+
+export function ProfileSettings({ open, onClose, onProfileSaved, onOpenQuiz }: ProfileSettingsProps) {
   const { user, checkAuth } = useAuth()
   const [isUploading, setIsUploading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -25,6 +37,8 @@ export function ProfileSettings({ open, onClose, onProfileSaved }: ProfileSettin
   const [profession, setProfession] = useState("")
   const [aboutMe, setAboutMe] = useState("")
   const [financialGoals, setFinancialGoals] = useState("")
+  const [editingQuizField, setEditingQuizField] = useState<string | null>(null)
+  const [quizValues, setQuizValues] = useState<Record<string, string>>({})
 
   useEffect(() => {
     if (user) {
@@ -32,6 +46,11 @@ export function ProfileSettings({ open, onClose, onProfileSaved }: ProfileSettin
       setProfession(user.profession || "")
       setAboutMe(user.about_me || "")
       setFinancialGoals(user.financial_goals || "")
+      if (user.quiz_profile) {
+        setQuizValues(user.quiz_profile)
+      } else {
+        setQuizValues({})
+      }
     }
   }, [user])
 
@@ -55,8 +74,8 @@ export function ProfileSettings({ open, onClose, onProfileSaved }: ProfileSettin
     setError("")
 
     try {
-      const result = await uploadAvatar(file)
-      await checkAuth() // Refresh user data
+      await uploadAvatar(file)
+      await checkAuth()
       setError("")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Fehler beim Hochladen")
@@ -74,21 +93,21 @@ export function ProfileSettings({ open, onClose, onProfileSaved }: ProfileSettin
     setSuccess("")
     
     try {
+      const updatedQuizProfile = { ...(user?.quiz_profile || {}), ...quizValues }
       await updateUserProfile({
         full_name: fullName || undefined,
         profession: profession || undefined,
         about_me: aboutMe || undefined,
         financial_goals: financialGoals || undefined,
+        quiz_profile: Object.keys(updatedQuizProfile).length > 0 ? updatedQuizProfile : undefined,
       })
       await checkAuth()
       setSuccess("Profil erfolgreich aktualisiert")
       
-      // Call callback to refresh suggested questions if financial goals were updated
       if (onProfileSaved) {
         onProfileSaved()
       }
       
-      // Close modal after successful save
       setTimeout(() => {
         setSuccess("")
         onClose()
@@ -100,9 +119,29 @@ export function ProfileSettings({ open, onClose, onProfileSaved }: ProfileSettin
     }
   }
 
+  const handleQuizFieldEdit = (key: string) => {
+    if (editingQuizField === key) {
+      // Save
+      const updatedQuizProfile = { ...(user?.quiz_profile || {}), ...quizValues }
+      setQuizValues(updatedQuizProfile)
+      setEditingQuizField(null)
+    } else {
+      // Start editing
+      setEditingQuizField(key)
+    }
+  }
+
+  const handleQuizFieldCancel = () => {
+    setEditingQuizField(null)
+    if (user?.quiz_profile) {
+      setQuizValues(user.quiz_profile)
+    } else {
+      setQuizValues({})
+    }
+  }
+
   const getAvatarUrl = () => {
     if (user?.avatar_url) {
-      // If avatar_url is a full URL, use it; otherwise prepend API base URL
       if (user.avatar_url.startsWith('http')) {
         return user.avatar_url
       }
@@ -111,187 +150,335 @@ export function ProfileSettings({ open, onClose, onProfileSaved }: ProfileSettin
     return null
   }
 
-  if (!open) return null
+  const quizProfileCompleteness = user?.quiz_profile ? Object.keys(user.quiz_profile).length : 0
+  const maxQuizFields = 7
+  const completenessPercentage = Math.min((quizProfileCompleteness / maxQuizFields) * 100, 100)
 
   return (
-    <div 
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in-0 duration-200"
-      onClick={onClose}
-    >
-      <div 
-        className="bg-finsim-surface dark:bg-finsim-dark-surface border border-finsim-border dark:border-finsim-dark-border rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 slide-in-from-bottom-2 duration-300"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="sticky top-0 bg-gradient-to-r from-finsim-surface dark:from-finsim-dark-surface to-finsim-surfaceElevated dark:to-finsim-dark-surfaceElevated border-b border-finsim-borderLight dark:border-finsim-dark-borderLight p-6 flex items-center justify-between backdrop-blur-sm z-10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-finsim-primary/20 dark:from-finsim-dark-primary/20 to-finsim-primary/10 dark:to-finsim-dark-primary/10 flex items-center justify-center border border-finsim-primary/30 dark:border-finsim-dark-primary/30">
-              <User className="h-5 w-5 text-finsim-primary dark:text-finsim-dark-primary" />
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold text-finsim-textMain dark:text-finsim-dark-textMain tracking-tight">Profil-Einstellungen</h2>
-              <p className="text-xs text-finsim-textMuted dark:text-finsim-dark-textMuted mt-0.5">Verwalte deine persönlichen Informationen</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg hover:bg-finsim-surfaceElevated dark:hover:bg-finsim-dark-surfaceElevated transition-all duration-200 hover:scale-110 active:scale-95"
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            className="relative w-full max-w-2xl rounded-3xl bg-finsim-surface dark:bg-finsim-dark-surface border border-finsim-border dark:border-finsim-dark-border shadow-2xl max-h-[90vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
           >
-            <X className="h-5 w-5 text-finsim-textSecondary dark:text-finsim-dark-textSecondary" />
-          </button>
-        </div>
+            {/* Header */}
+            <div className="p-6 border-b border-finsim-borderLight dark:border-finsim-dark-borderLight bg-finsim-surfaceElevated dark:bg-finsim-dark-surfaceElevated">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <h2 className="text-2xl font-bold text-finsim-textMain dark:text-white tracking-tight">
+                    Profil-Einstellungen
+                  </h2>
+                  <p className="text-sm text-finsim-textMuted dark:text-finsim-dark-textMuted">
+                    Verwalte deine persönlichen Informationen
+                  </p>
+                </div>
+                <motion.button
+                  onClick={onClose}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="p-2 rounded-lg hover:bg-finsim-surfaceMuted dark:hover:bg-finsim-dark-surfaceMuted transition-colors"
+                >
+                  <X className="h-5 w-5 text-finsim-textSecondary dark:text-finsim-dark-textSecondary" />
+                </motion.button>
+              </div>
+            </div>
 
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
-          <div className="p-6 space-y-8">
-            {/* Avatar Section */}
-            <div className="flex flex-col items-center space-y-6 pb-6 border-b border-finsim-borderLight">
-              <div className="relative group">
-                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-finsim-primary/20 to-finsim-primary/10 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                {getAvatarUrl() ? (
-                  <img
-                    src={getAvatarUrl()!}
-                    alt="Avatar"
-                    className="relative w-28 h-28 rounded-full object-cover border-4 border-finsim-surface shadow-lg ring-2 ring-finsim-primary/20 transition-all duration-300 group-hover:scale-105 group-hover:ring-finsim-primary/40"
-                  />
-                ) : (
-                  <div className="relative w-28 h-28 rounded-full bg-gradient-to-br from-finsim-primaryLight to-finsim-primary/20 flex items-center justify-center border-4 border-finsim-surface shadow-lg ring-2 ring-finsim-primary/20 transition-all duration-300 group-hover:scale-105 group-hover:ring-finsim-primary/40">
-                    <User className="h-14 w-14 text-finsim-primary" />
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar">
+              <div className="p-6 space-y-6">
+                {/* Avatar Section */}
+                <div className="flex flex-col items-center space-y-4 pb-6 border-b border-finsim-borderLight dark:border-finsim-dark-borderLight">
+                  <div className="relative group">
+                    {getAvatarUrl() ? (
+                      <img
+                        src={getAvatarUrl()!}
+                        alt="Avatar"
+                        className="w-24 h-24 rounded-full object-cover border-3 border-finsim-border dark:border-finsim-dark-border shadow-lg transition-transform duration-300 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="w-24 h-24 rounded-full bg-gradient-to-br from-finsim-primary to-finsim-accent flex items-center justify-center border-3 border-finsim-border dark:border-finsim-dark-border shadow-lg transition-transform duration-300 group-hover:scale-105">
+                        <User className="h-12 w-12 text-white" />
+                      </div>
+                    )}
+                    <motion.button
+                      onClick={() => fileInputRef.current?.click()}
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-finsim-primary dark:bg-finsim-dark-primary border-2 border-white dark:border-finsim-dark-surface flex items-center justify-center shadow-lg cursor-pointer"
+                    >
+                      <Upload className="h-4 w-4 text-white" />
+                    </motion.button>
                   </div>
+
+                  <Input
+                    id="avatar-upload"
+                    type="file"
+                    accept="image/*"
+                    ref={fileInputRef}
+                    onChange={handleFileSelect}
+                    disabled={isUploading}
+                    className="hidden"
+                  />
+
+                  {/* Profile Completion - Only show if quiz exists */}
+                  {user?.quiz_profile && Object.keys(user.quiz_profile).length > 0 && (
+                    <div className="w-full max-w-xs space-y-2 rounded-2xl glass-effect border border-white/40 dark:border-white/10 p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Award className="h-4 w-4 text-finsim-primary dark:text-finsim-dark-primary" />
+                          <span className="text-sm font-semibold text-finsim-textMain dark:text-white">
+                            Profil-Vollständigkeit
+                          </span>
+                        </div>
+                        <span className="text-sm font-bold text-finsim-primary dark:text-finsim-dark-primary tabular-nums">
+                          {Math.round(completenessPercentage)}%
+                        </span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-finsim-surfaceMuted dark:bg-finsim-dark-surfaceMuted overflow-hidden">
+                        <motion.div
+                          className="h-full rounded-full bg-gradient-to-r from-finsim-primary to-finsim-accent"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${completenessPercentage}%` }}
+                          transition={{ duration: 0.8, ease: "easeOut" }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* User Info */}
+                <div className="space-y-5">
+                  {/* Email (read-only) */}
+                  <div className="rounded-xl border border-finsim-borderLight dark:border-finsim-dark-borderLight bg-finsim-surfaceElevated dark:bg-finsim-dark-surfaceElevated p-4">
+                    <p className="text-xs uppercase tracking-wider text-finsim-textMuted dark:text-finsim-dark-textMuted font-semibold mb-1.5">
+                      E-Mail
+                    </p>
+                    <p className="text-base font-semibold text-finsim-textMain dark:text-white break-all">
+                      {user?.email}
+                    </p>
+                  </div>
+
+                  {/* Quiz Profile - Editable */}
+                  <div className="rounded-xl border border-finsim-borderLight dark:border-finsim-dark-borderLight bg-finsim-surfaceElevated dark:bg-finsim-dark-surfaceElevated p-5 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-finsim-primary dark:text-finsim-dark-primary" />
+                          <p className="text-sm font-semibold text-finsim-textMain dark:text-white">
+                            Finanzprofil (Quiz)
+                          </p>
+                        </div>
+                        <p className="text-xs text-finsim-textMuted dark:text-finsim-dark-textMuted">
+                          Personalisiere deine Finanzempfehlungen
+                        </p>
+                      </div>
+                      {onOpenQuiz && (
+                        <button
+                          onClick={() => onOpenQuiz()}
+                          className="text-xs font-medium text-finsim-primary dark:text-finsim-dark-primary hover:underline px-3 py-1.5 rounded-lg hover:bg-finsim-primaryLight dark:hover:bg-finsim-dark-primaryLight transition-colors"
+                        >
+                          {user?.quiz_profile ? "Quiz erneut starten" : "Quiz starten"}
+                        </button>
+                      )}
+                    </div>
+                    {user?.quiz_profile && Object.keys(user.quiz_profile).length > 0 ? (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {Object.entries(user.quiz_profile).map(([key, value]) => {
+                          const fieldInfo = QUIZ_FIELD_LABELS[key] || { label: key }
+                          const isEditing = editingQuizField === key
+                          const currentValue = isEditing ? (quizValues[key] || value) : (quizValues[key] !== undefined ? quizValues[key] : value)
+                          return (
+                            <div
+                              key={key}
+                              className="relative rounded-lg border border-finsim-borderLight dark:border-finsim-dark-borderLight bg-finsim-surface dark:bg-finsim-dark-surface p-3 hover:bg-finsim-surfaceElevated dark:hover:bg-finsim-dark-surfaceElevated transition-colors group"
+                            >
+                              {!isEditing ? (
+                                <>
+                                  <div className="flex items-start justify-between gap-2 mb-1.5">
+                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                      {fieldInfo.emoji && (
+                                        <span className="text-base flex-shrink-0">{fieldInfo.emoji}</span>
+                                      )}
+                                      <p className="text-xs uppercase tracking-wider text-finsim-textMuted dark:text-finsim-dark-textMuted font-semibold truncate">
+                                        {fieldInfo.label}
+                                      </p>
+                                    </div>
+                                    <motion.button
+                                      onClick={() => handleQuizFieldEdit(key)}
+                                      whileHover={{ scale: 1.1 }}
+                                      whileTap={{ scale: 0.9 }}
+                                      className="p-1.5 rounded-md hover:bg-finsim-surfaceMuted dark:hover:bg-finsim-dark-surfaceMuted opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                      <Edit2 className="h-3.5 w-3.5 text-finsim-textSecondary dark:text-finsim-dark-textSecondary" />
+                                    </motion.button>
+                                  </div>
+                                  <p className="text-sm font-semibold text-finsim-textMain dark:text-white leading-snug">
+                                    {currentValue}
+                                  </p>
+                                </>
+                              ) : (
+                                <div className="space-y-2">
+                                  <Input
+                                    value={currentValue}
+                                    onChange={(e) => setQuizValues((prev) => ({ ...prev, [key]: e.target.value }))}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        handleQuizFieldEdit(key)
+                                      } else if (e.key === 'Escape') {
+                                        handleQuizFieldCancel()
+                                      }
+                                    }}
+                                    autoFocus
+                                    className="text-sm font-semibold h-9"
+                                  />
+                                  <div className="flex items-center gap-2 text-xs text-finsim-textMuted dark:text-finsim-dark-textMuted">
+                                    <span>Enter zum Speichern, Esc zum Abbrechen</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-dashed border-finsim-borderLight dark:border-finsim-dark-borderLight p-4 text-center">
+                        <p className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary">
+                          Noch kein Quiz ausgefüllt. Starte das Quiz, um personalisierte Tipps zu erhalten.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Basic Info */}
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="full-name" className="text-sm font-semibold text-finsim-textMain dark:text-white">
+                        Vollständiger Name
+                      </Label>
+                      <Input
+                        id="full-name"
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        placeholder="Name"
+                        className="h-11"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="profession" className="text-sm font-semibold text-finsim-textMain dark:text-white">
+                        Beruf / Profession
+                      </Label>
+                      <Input
+                        id="profession"
+                        value={profession}
+                        onChange={(e) => setProfession(e.target.value)}
+                        placeholder="z.B. Entwickler, Student ..."
+                        className="h-11"
+                      />
+                    </div>
+                  </div>
+
+                  {/* About Me */}
+                  <div className="space-y-2">
+                    <Label htmlFor="about-me" className="text-sm font-semibold text-finsim-textMain dark:text-white">
+                      Informationen über dich
+                    </Label>
+                    <textarea
+                      id="about-me"
+                      value={aboutMe}
+                      onChange={(e) => setAboutMe(e.target.value)}
+                      placeholder="Kurz notieren, was wir berücksichtigen sollen."
+                      className="w-full min-h-[100px] rounded-xl border border-finsim-borderLight dark:border-finsim-dark-borderLight bg-finsim-surface dark:bg-finsim-dark-surface py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-finsim-primary/20 focus:border-finsim-primary transition-all resize-none"
+                    />
+                  </div>
+
+                  {/* Financial Goals */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-finsim-primary dark:text-finsim-dark-primary" />
+                      <Label htmlFor="financial-goals" className="text-sm font-semibold text-finsim-textMain dark:text-white">
+                        Finanzielle Ziele
+                      </Label>
+                    </div>
+                    <textarea
+                      id="financial-goals"
+                      value={financialGoals}
+                      onChange={(e) => setFinancialGoals(e.target.value)}
+                      placeholder="Konkrete Ziele (Betrag + Zeitraum) eintragen."
+                      className="w-full min-h-[100px] rounded-xl border border-finsim-borderLight dark:border-finsim-dark-borderLight bg-finsim-surface dark:bg-finsim-dark-surface py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-finsim-primary/20 focus:border-finsim-primary transition-all resize-none"
+                    />
+                    <p className="text-xs text-finsim-textMuted dark:text-finsim-dark-textMuted flex items-start gap-1.5">
+                      <Sparkles className="h-3 w-3 text-finsim-primary mt-0.5 flex-shrink-0" />
+                      <span>Knackige Ziele liefern genauere KI-Empfehlungen.</span>
+                    </p>
+                  </div>
+
+                  {/* Messages */}
+                  <AnimatePresence>
+                    {error && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 p-4 flex items-start gap-3"
+                      >
+                        <div className="w-1 h-full bg-red-500 dark:bg-red-400 rounded-full flex-shrink-0" />
+                        <p className="text-sm text-red-700 dark:text-red-400 flex-1">{error}</p>
+                      </motion.div>
+                    )}
+
+                    {success && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="rounded-xl bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 p-4 flex items-center gap-3"
+                      >
+                        <Check className="h-4 w-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                        <p className="text-sm text-green-700 dark:text-green-400 flex-1">{success}</p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer with Save Button */}
+            <div className="p-6 border-t border-finsim-borderLight dark:border-finsim-dark-borderLight bg-finsim-surfaceElevated dark:bg-finsim-dark-surfaceElevated">
+              <motion.button
+                onClick={handleSaveProfile}
+                disabled={isSaving}
+                whileHover={{ scale: isSaving ? 1 : 1.01 }}
+                whileTap={{ scale: isSaving ? 1 : 0.99 }}
+                className="w-full h-12 rounded-xl bg-finsim-primary dark:bg-finsim-dark-primary hover:bg-finsim-primaryHover dark:hover:bg-finsim-dark-primaryHover text-white font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isSaving ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Wird gespeichert...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-5 w-5" />
+                    <span>Profil speichern</span>
+                  </>
                 )}
-                <div className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-finsim-primary border-4 border-finsim-surface flex items-center justify-center shadow-md hover:scale-110 transition-transform duration-200 cursor-pointer"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Upload className="h-4 w-4 text-white" />
-                </div>
-              </div>
-
-              <div className="space-y-2 w-full max-w-xs">
-                <Input
-                  id="avatar-upload"
-                  type="file"
-                  accept="image/*"
-                  ref={fileInputRef}
-                  onChange={handleFileSelect}
-                  disabled={isUploading}
-                  className="hidden"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploading}
-                  className="w-full flex items-center justify-center gap-2 border-finsim-borderLight hover:border-finsim-primary/30 hover:bg-finsim-surfaceElevated transition-all duration-200"
-                >
-                  <Upload className={`h-4 w-4 transition-transform ${isUploading ? 'animate-spin' : ''}`} />
-                  {isUploading ? "Wird hochgeladen..." : "Profilbild ändern"}
-                </Button>
-              </div>
+              </motion.button>
             </div>
-
-            {/* User Info */}
-            <div className="space-y-6">
-              {/* Email (read-only) */}
-              <div className="bg-finsim-surfaceElevated/50 rounded-xl p-4 border border-finsim-borderLight">
-                <Label className="text-xs font-medium text-finsim-textSecondary uppercase tracking-wide mb-2 block">E-Mail</Label>
-                <div className="text-sm font-medium text-finsim-textMain">{user?.email}</div>
-              </div>
-              
-              {/* Full Name */}
-              <div className="space-y-2">
-                <Label htmlFor="full-name" className="text-sm font-semibold text-finsim-textMain">Vollständiger Name</Label>
-                <Input
-                  id="full-name"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Dein Name"
-                  className="h-11 border-finsim-borderLight focus:border-finsim-primary focus:ring-finsim-primary/20 transition-all duration-200"
-                />
-              </div>
-
-              {/* Profession */}
-              <div className="space-y-2">
-                <Label htmlFor="profession" className="text-sm font-semibold text-finsim-textMain">Beruf / Profession</Label>
-                <Input
-                  id="profession"
-                  value={profession}
-                  onChange={(e) => setProfession(e.target.value)}
-                  placeholder="z.B. Softwareentwickler, Student, etc."
-                  className="h-11 border-finsim-borderLight focus:border-finsim-primary focus:ring-finsim-primary/20 transition-all duration-200"
-                />
-              </div>
-
-              {/* About Me */}
-              <div className="space-y-2">
-                <Label htmlFor="about-me" className="text-sm font-semibold text-finsim-textMain">Informationen über dich</Label>
-                <textarea
-                  id="about-me"
-                  value={aboutMe}
-                  onChange={(e) => setAboutMe(e.target.value)}
-                  placeholder="Zusätzliche Informationen, die bei der Finanzanalyse berücksichtigt werden sollen..."
-                  className="w-full min-h-[120px] rounded-lg border border-finsim-borderLight bg-finsim-surfaceElevated py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-finsim-primary/20 focus:border-finsim-primary transition-all duration-200 resize-none"
-                />
-              </div>
-
-              {/* Financial Goals */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-finsim-primary" />
-                  <Label htmlFor="financial-goals" className="text-sm font-semibold text-finsim-textMain">Finanzielle Ziele</Label>
-                </div>
-                <textarea
-                  id="financial-goals"
-                  value={financialGoals}
-                  onChange={(e) => setFinancialGoals(e.target.value)}
-                  placeholder="z.B. Eigenheim kaufen, für die Rente sparen, Schulden abbauen, etc. Diese Ziele werden bei der Analyse berücksichtigt."
-                  className="w-full min-h-[120px] rounded-lg border border-finsim-borderLight bg-finsim-surfaceElevated py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-finsim-primary/20 focus:border-finsim-primary transition-all duration-200 resize-none"
-                />
-                <p className="text-xs text-finsim-textMuted flex items-start gap-1.5">
-                  <Sparkles className="h-3 w-3 text-finsim-primary mt-0.5 flex-shrink-0" />
-                  <span>Basierend auf deinen Zielen werden personalisierte Fragen für dich generiert und in den Beispiel-Fragen angezeigt.</span>
-                </p>
-              </div>
-
-              {/* Messages */}
-              {error && (
-                <div className="bg-red-50 dark:bg-red-500/20 border border-red-200 dark:border-red-500/30 rounded-lg p-3 flex items-start gap-2 animate-in slide-in-from-top-2 duration-200">
-                  <div className="w-1 h-full bg-red-500 dark:bg-red-400 rounded-full flex-shrink-0" />
-                  <p className="text-sm text-red-700 dark:text-red-400 flex-1">{error}</p>
-                </div>
-              )}
-
-              {success && (
-                <div className="bg-green-50 dark:bg-green-500/20 border border-green-200 dark:border-green-500/30 rounded-lg p-3 flex items-center gap-2 animate-in slide-in-from-top-2 duration-200">
-                  <Check className="h-4 w-4 text-green-600 dark:text-green-400 flex-shrink-0" />
-                  <p className="text-sm text-green-700 dark:text-green-400 flex-1">{success}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Footer with Save Button */}
-        <div className="sticky bottom-0 bg-gradient-to-r from-finsim-surface dark:from-finsim-dark-surface to-finsim-surfaceElevated dark:to-finsim-dark-surfaceElevated border-t border-finsim-borderLight dark:border-finsim-dark-borderLight p-6 backdrop-blur-sm">
-          <Button
-            onClick={handleSaveProfile}
-            disabled={isSaving}
-            className="w-full h-12 bg-finsim-primary dark:bg-finsim-dark-primary hover:bg-finsim-primaryHover dark:hover:bg-finsim-dark-primaryHover text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2"
-          >
-            {isSaving ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span>Wird gespeichert...</span>
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4" />
-                <span>Profil speichern</span>
-              </>
-            )}
-          </Button>
-        </div>
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }
-

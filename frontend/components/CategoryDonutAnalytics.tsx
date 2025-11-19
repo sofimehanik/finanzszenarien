@@ -354,57 +354,57 @@ export function CategoryDonutAnalytics({ transactions }: CategoryDonutAnalyticsP
             {topCategoriesList.map((category, index) => {
               const isActive = activePieIndex === category.index
               return (
-                <motion.div
-                  key={category.name}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.05 }}
+            <motion.div
+              key={category.name}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: index * 0.05 }}
                   className={`group relative p-3.5 rounded-lg bg-white/60 dark:bg-white/5 border border-finsim-borderLight dark:border-finsim-dark-borderLight transition-all duration-300 cursor-pointer ${
                     isActive
                       ? "bg-finsim-primary/10 dark:bg-finsim-dark-primary/15 border-finsim-primary/30 dark:border-finsim-dark-primary/40 shadow-sm scale-[1.01]"
                       : "hover:bg-white/80 dark:hover:bg-white/10 hover:border-finsim-primary/20 dark:hover:border-finsim-dark-primary/30"
-                  }`}
+              }`}
                   onMouseEnter={() => setActivePieIndex(category.index)}
-                  onMouseLeave={() => setActivePieIndex(null)}
-                >
+              onMouseLeave={() => setActivePieIndex(null)}
+            >
                   <div className="flex items-center justify-between gap-3 mb-2.5">
                     <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                      <div 
+                  <div 
                         className="w-3 h-3 rounded-full flex-shrink-0 transition-all duration-300 shadow-sm"
                         style={{ 
                           backgroundColor: category.color,
                           transform: isActive ? 'scale(1.15)' : 'scale(1)',
                         }}
-                      />
+                  />
                       <span className="text-sm font-medium text-finsim-textMain dark:text-finsim-dark-textMain truncate">
-                        {category.label}
-                      </span>
-                    </div>
+                    {category.label}
+                  </span>
+                </div>
                     <div className="flex items-center gap-3 flex-shrink-0">
                       <span className="text-xs font-bold font-mono text-finsim-textMain dark:text-finsim-dark-textMain">
-                        {category.percent.toFixed(1)}%
-                      </span>
+                  {category.percent.toFixed(1)}%
+                </span>
                       <span className="text-xs font-bold font-mono text-finsim-textMain dark:text-finsim-dark-textMain">
-                        {currencyDE.format(category.value)}
-                      </span>
+                  {currencyDE.format(category.value)}
+                </span>
                     </div>
                   </div>
                   {/* Progress bar */}
                   <div className="h-1.5 bg-finsim-surfaceMuted dark:bg-finsim-dark-surfaceMuted rounded-full overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${category.percent}%` }}
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${category.percent}%` }}
                       transition={{ delay: index * 0.05 + 0.2, duration: 0.8, ease: "easeOut" }}
                       className="h-full rounded-full transition-all duration-300"
                       style={{ 
                         backgroundColor: category.color,
                       }}
-                    />
-                  </div>
+                  />
+                </div>
                 </motion.div>
               )
             })}
-          </div>
+              </div>
         </div>
       </div>
     </div>

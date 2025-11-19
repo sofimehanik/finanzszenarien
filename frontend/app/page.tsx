@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { FileUpload } from "@/components/FileUpload"
 import { ScenarioCard } from "@/components/ScenarioCard"
 import { ScenarioChart } from "@/components/ScenarioChart"
@@ -9,22 +9,24 @@ import PdfExportButton from "@/components/PdfExportButton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-import { analyzeCSV, AnalysisResponse, getSuggestedQuestions, getTipDetails } from "@/lib/api"
+import { analyzeCSV, AnalysisResponse, getSuggestedQuestions, getTipDetails, updateUserProfile } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
-import { AlertCircle, Lightbulb, Globe, User, Brain, Sparkles, LogOut, Menu, ChevronDown, ChevronUp, X, Loader2, TrendingUp, FileText, CheckCircle, ArrowUp, ArrowDown, Minus } from "lucide-react"
+import { AlertCircle, Lightbulb, Globe, User, Brain, Sparkles, LogOut, Menu, ChevronDown, ChevronUp, X, Loader2, TrendingUp, FileText, CheckCircle, ArrowUp, ArrowDown, Minus, Edit2, Check } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { AuthModal } from "@/components/AuthModal"
 import { ProfileSettings } from "@/components/ProfileSettings"
 import { AnalysisHistorySidebar } from "@/components/AnalysisHistorySidebar"
 import { UserMenu } from "@/components/UserMenu"
 import { DraggablePills } from "@/components/DraggablePills"
+import { QuizModal } from "@/components/QuizModal"
+import { FinSimLogo } from "@/components/FinSimLogo"
 
 const EXAMPLE_PROMPTS = [
-  "Kann ich mir eine monatliche Rate von 500€ für ein Auto leisten?",
-  "Ist es möglich, in 12 Monaten 10.000€ für eine Reise zu sparen?",
-  "Kann ich mir eine Wohnung mit 800€ Miete leisten?",
-  "Schaffe ich es, in 6 Monaten 5.000€ für einen Notgroschen anzusparen?",
-  "Ist mein Budget ausreichend für einen Umzug in eine größere Wohnung?",
+  "Kann ich 500€ Autokredit monatlich stemmen?",
+  "Schaffe ich 10.000€ in 12 Monaten zu sparen?",
+  "Sind 800€ Miete mit meinem Budget drin?",
+  "Wie erreiche ich 5.000€ Notgroschen in 6 Monaten?",
+  "Reicht mein Budget für einen größeren Umzug?",
 ]
 
 // Fallback подсказки на случай, если LLM не работает
@@ -544,15 +546,93 @@ export default function Home() {
   const [userGoal, setUserGoal] = useState("")
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [showProfileSettings, setShowProfileSettings] = useState(false)
+  const [isQuizOpen, setIsQuizOpen] = useState(false)
   const [showHistorySidebar, setShowHistorySidebar] = useState(false)
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([])
   const [orderedExamplePrompts, setOrderedExamplePrompts] = useState<string[]>(EXAMPLE_PROMPTS)
   const [selectedTip, setSelectedTip] = useState<{ emoji: string; title: string; description: string } | null>(null)
   const [tipDetails, setTipDetails] = useState<string | null>(null)
   const [isLoadingTipDetails, setIsLoadingTipDetails] = useState(false)
+  const [editingQuizField, setEditingQuizField] = useState<string | null>(null)
+  const [quizEditValues, setQuizEditValues] = useState<Record<string, string>>({})
+  const [isSavingQuiz, setIsSavingQuiz] = useState(false)
   
   // Greeting variations for authenticated users - random on each page load/refresh
   const [greeting, setGreeting] = useState<string | null>(null)
+  const [activeSection, setActiveSection] = useState<string | null>(null)
+  
+  // Refs for scroll tracking
+  const heroRef = useRef<HTMLElement>(null)
+  const fileUploadRef = useRef<HTMLDivElement>(null)
+  const financeSummaryRef = useRef<HTMLElement>(null)
+  const projectionsRef = useRef<HTMLElement>(null)
+  const deepAnalysisRef = useRef<HTMLElement>(null)
+
+  // Scroll tracking with Intersection Observer (macOS style - background gradient shift)
+  useEffect(() => {
+    if (!analysis) {
+      // Only track sections when no analysis is shown
+      const sections = [
+        { id: 'hero', ref: heroRef },
+        { id: 'fileUpload', ref: fileUploadRef },
+      ].filter(s => s.ref.current)
+
+      const observers = sections.map(({ id, ref }) => {
+        const observer = new IntersectionObserver(
+          ([entry]) => {
+            if (entry.isIntersecting && entry.intersectionRatio > 0.15) {
+              setActiveSection(id)
+            }
+          },
+          {
+            threshold: [0, 0.15, 0.3, 0.5, 0.7, 1],
+            rootMargin: '-10% 0px -10% 0px',
+          }
+        )
+
+        if (ref.current) {
+          observer.observe(ref.current)
+        }
+
+        return observer
+      })
+
+      return () => {
+        observers.forEach(observer => observer.disconnect())
+      }
+    } else {
+      // Track analysis sections
+      const sections = [
+        { id: 'financeSummary', ref: financeSummaryRef },
+        { id: 'projections', ref: projectionsRef },
+        { id: 'deepAnalysis', ref: deepAnalysisRef },
+      ].filter(s => s.ref.current)
+
+      const observers = sections.map(({ id, ref }) => {
+        const observer = new IntersectionObserver(
+          ([entry]) => {
+            if (entry.isIntersecting && entry.intersectionRatio > 0.15) {
+              setActiveSection(id)
+            }
+          },
+          {
+            threshold: [0, 0.15, 0.3, 0.5, 0.7, 1],
+            rootMargin: '-10% 0px -10% 0px',
+          }
+        )
+
+        if (ref.current) {
+          observer.observe(ref.current)
+        }
+
+        return observer
+      })
+
+      return () => {
+        observers.forEach(observer => observer.disconnect())
+      }
+    }
+  }, [analysis])
   
   useEffect(() => {
     if (isAuthenticated && user?.full_name) {
@@ -597,6 +677,129 @@ export default function Home() {
     setTimeout(async () => {
       await loadSuggestedQuestions()
     }, 500)
+  }
+
+  // Функция для генерации CSV из quiz_profile
+  const generateCSVFromQuiz = (): File | null => {
+    if (!user?.quiz_profile || Object.keys(user.quiz_profile).length === 0) {
+      return null
+    }
+
+    const profile = user.quiz_profile
+    
+    // Парсим числовые значения, убирая валютные символы и пробелы
+    const parseAmount = (value: string | undefined): number => {
+      if (!value) return 0
+      // Убираем валютные символы, пробелы и точки-разделители тысяч
+      let cleaned = value.toString().replace(/[€\s]/g, '')
+      // Если есть запятая, это европейский формат (1.234,56)
+      if (cleaned.includes(',')) {
+        cleaned = cleaned.replace(/\./g, '').replace(',', '.')
+      }
+      return parseFloat(cleaned) || 0
+    }
+
+    const netIncome = parseAmount(profile.net_income)
+    const fixedCosts = parseAmount(profile.fixed_costs)
+    
+    // Пытаемся вычислить дополнительные расходы на основе savings_rate
+    let additionalExpenses = 0
+    if (profile.savings_rate) {
+      const savingsRate = parseFloat(profile.savings_rate.toString().replace(/[%,\s]/g, '')) || 0
+      const savingsAmount = netIncome * (savingsRate / 100)
+      // Дополнительные расходы = доход - фиксированные расходы - сбережения
+      additionalExpenses = Math.max(0, netIncome - fixedCosts - savingsAmount)
+    } else {
+      // Если нет savings_rate, используем примерно 25% от дохода
+      additionalExpenses = netIncome * 0.25
+    }
+
+    if (!netIncome || netIncome <= 0) {
+      return null
+    }
+
+    // Генерируем 12 месяцев данных на основе quiz_profile
+    const today = new Date()
+    const csvRows: string[] = ['date,amount,category,description']
+    
+    // Категории расходов
+    const expenseCategories = [
+      { name: 'groceries', label: 'Lebensmittel', ratio: 0.15 },
+      { name: 'transport', label: 'Transport', ratio: 0.10 },
+      { name: 'entertainment', label: 'Freizeit', ratio: 0.10 },
+      { name: 'other', label: 'Sonstige', ratio: 0.20 }
+    ]
+    
+    // Генерируем транзакции за последние 12 месяцев
+    for (let i = 11; i >= 0; i--) {
+      const date = new Date(today.getFullYear(), today.getMonth() - i, 1)
+      const dateStr = date.toISOString().split('T')[0]
+      
+      // Доход (в начале месяца)
+      csvRows.push(`${dateStr},${netIncome.toFixed(2)},income,Gehalt`)
+      
+      // Фиксированные расходы (в начале месяца)
+      if (fixedCosts > 0) {
+        csvRows.push(`${dateStr},-${fixedCosts.toFixed(2)},rent,Fixkosten`)
+      }
+      
+      // Дополнительные расходы по категориям (в течение месяца)
+      let remainingExpenses = additionalExpenses
+      expenseCategories.forEach((cat, idx) => {
+        if (remainingExpenses > 0) {
+          const amount = idx === expenseCategories.length - 1 
+            ? remainingExpenses 
+            : additionalExpenses * cat.ratio
+          if (amount > 0) {
+            const expenseDate = new Date(date)
+            expenseDate.setDate(expenseDate.getDate() + 5 + idx * 7) // Распределяем по месяцам
+            const expenseDateStr = expenseDate.toISOString().split('T')[0]
+            csvRows.push(`${expenseDateStr},-${amount.toFixed(2)},${cat.name},${cat.label}`)
+            remainingExpenses -= amount
+          }
+        }
+      })
+    }
+
+    const csvContent = csvRows.join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    return new File([blob], 'quiz_data.csv', { type: 'text/csv' })
+  }
+
+  const handleUseQuizData = async () => {
+    if (!userGoal.trim()) {
+      setError("Bitte beschreibe dein finanzielles Ziel oder deine Frage.")
+      return
+    }
+
+    if (!user?.quiz_profile || Object.keys(user.quiz_profile).length === 0) {
+      setError("Bitte fülle zuerst das Quiz aus, um deine Daten zu verwenden.")
+      return
+    }
+
+    const csvFile = generateCSVFromQuiz()
+    if (!csvFile) {
+      setError("Fehler beim Generieren der Daten aus dem Quiz. Bitte überprüfe deine Quiz-Antworten.")
+      return
+    }
+
+    setIsLoading(true)
+    setError(null)
+    setAnalysis(null)
+
+    try {
+      console.log('Using quiz data for analysis')
+      console.log('User goal:', userGoal)
+      const result = await analyzeCSV(csvFile, userGoal.trim())
+      console.log('Analysis result:', result)
+      setAnalysis(result)
+    } catch (err) {
+      console.error('Analysis error:', err)
+      const errorMessage = err instanceof Error ? err.message : "Ein Fehler ist aufgetreten"
+      setError(errorMessage)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleFileSelect = async (file: File) => {
@@ -732,38 +935,129 @@ export default function Home() {
     }
   }
 
+  // Dynamic background gradient based on active section (macOS style)
+  const getGradientClasses = () => {
+    const gradients: Record<string, string> = {
+      hero: 'from-finsim-primary/3 via-transparent to-finsim-accent/2 dark:from-finsim-dark-primary/4 dark:via-transparent dark:to-finsim-dark-accent/3',
+      fileUpload: 'from-finsim-primary/4 via-finsim-accent/2 to-transparent dark:from-finsim-dark-primary/5 dark:via-finsim-dark-accent/3 dark:to-transparent',
+      financeSummary: 'from-emerald-500/3 via-finsim-primary/2 to-transparent dark:from-emerald-500/4 dark:via-finsim-dark-primary/3 dark:to-transparent',
+      projections: 'from-blue-500/3 via-finsim-accent/2 to-transparent dark:from-blue-500/4 dark:via-finsim-dark-accent/3 dark:to-transparent',
+      deepAnalysis: 'from-purple-500/3 via-finsim-primary/2 to-finsim-accent/2 dark:from-purple-500/4 dark:via-finsim-dark-primary/3 dark:to-finsim-dark-accent/3'
+    }
+    
+    const defaultGradient = 'from-finsim-primary/2 via-transparent to-finsim-accent/2 dark:from-finsim-dark-primary/3 dark:via-transparent dark:to-finsim-dark-accent/3'
+    
+    return activeSection ? gradients[activeSection] || defaultGradient : defaultGradient
+  }
+
   return (
-    <main className="min-h-screen gradient-bg dark:bg-finsim-dark-surfaceMuted">
-      <div className={`max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20 transition-all duration-300 ${
+    <main className="min-h-screen gradient-bg dark:bg-finsim-dark-surfaceMuted relative overflow-hidden">
+      {/* Animated background gradient overlay - macOS style */}
+      <motion.div
+        key={activeSection || 'default'}
+        className={`absolute inset-0 bg-gradient-to-br ${getGradientClasses()} pointer-events-none`}
+        initial={{ opacity: 0.3 }}
+        animate={{ opacity: [0.4, 0.6, 0.4] }}
+        transition={{
+          opacity: {
+            duration: 8,
+            repeat: Infinity,
+            ease: "easeInOut"
+          },
+          // Smooth transition when section changes
+          layout: {
+            duration: 1.2,
+            ease: [0.4, 0, 0.2, 1]
+          }
+        }}
+      />
+      {/* Additional subtle gradient layers for depth */}
+      <motion.div
+        className="absolute inset-0 bg-gradient-to-tl from-transparent via-transparent to-finsim-primary/2 dark:to-finsim-dark-primary/3 pointer-events-none"
+        animate={{
+          scale: [1, 1.1, 1],
+          opacity: [0.15, 0.25, 0.15],
+        }}
+        transition={{
+          duration: 12,
+          repeat: Infinity,
+          ease: "easeInOut"
+        }}
+      />
+      {/* Subtle radial gradient for extra depth */}
+      <motion.div
+        className="absolute inset-0 bg-gradient-radial from-finsim-accent/1 via-transparent to-transparent dark:from-finsim-dark-accent/2 pointer-events-none"
+        animate={{
+          opacity: [0.2, 0.3, 0.2],
+          scale: [1, 1.05, 1],
+        }}
+        transition={{
+          duration: 10,
+          repeat: Infinity,
+          ease: "easeInOut"
+        }}
+        style={{
+          background: 'radial-gradient(circle at 50% 50%, rgba(66, 201, 135, 0.05) 0%, transparent 70%)'
+        }}
+      />
+      <div className={`relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20 transition-all duration-500 bg-white/70 dark:bg-[#0b0f1c]/70 backdrop-blur-2xl rounded-[36px] border border-white/40 dark:border-white/10 shadow-[0_30px_120px_rgba(15,23,42,0.15)] ${
         showHistorySidebar && isAuthenticated ? 'md:ml-80' : ''
       }`}>
-        {/* Header */}
-        <header className="flex items-center justify-between mb-12 sm:mb-16">
+        {/* Header - Premium Minimalist Design */}
+        <motion.header
+          className="relative z-30 mb-8 sm:mb-12"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+        >
+          <div className="flex items-center justify-between gap-4 px-2 py-3">
+            {/* Left: Logo + History Button */}
           <div className="flex items-center gap-3">
             {isAuthenticated && (
-              <button
+                <motion.button
                 onClick={() => setShowHistorySidebar(true)}
-                className="p-2 rounded-lg hover:bg-finsim-surfaceElevated dark:hover:bg-finsim-dark-surfaceElevated transition-colors"
+                  className="p-2.5 rounded-xl bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/40 dark:border-white/10 text-finsim-textSecondary dark:text-finsim-dark-textSecondary hover:text-finsim-primary dark:hover:text-finsim-dark-primary hover:bg-white/80 dark:hover:bg-white/10 transition-all duration-200"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                 title="Analyse-Verlauf"
               >
-                <Menu className="h-5 w-5 text-finsim-textSecondary dark:text-finsim-dark-textSecondary" />
-              </button>
+                  <Menu className="h-4 w-4" />
+                </motion.button>
             )}
-            <button
+              <motion.button
               onClick={() => {
                 setAnalysis(null)
                 setError(null)
                 setUserGoal("")
               }}
-              className="text-lg sm:text-xl font-semibold tracking-tight text-finsim-textMain dark:text-finsim-dark-textMain hover:text-finsim-primary dark:hover:text-finsim-dark-primary transition-colors cursor-pointer"
-            >
-              FinSim
-            </button>
-            <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-md bg-finsim-primaryLight dark:bg-finsim-dark-primaryLight text-finsim-primary dark:text-finsim-dark-primary font-medium tracking-wide uppercase">
-              Beta
-            </span>
+                className="flex items-center gap-2.5 group cursor-pointer"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <FinSimLogo size="md" showWordmark={true} />
+                <motion.span
+                  className="relative text-[9px] px-2.5 py-0.5 rounded-md bg-white/40 dark:bg-white/5 border border-white/30 dark:border-white/10 text-finsim-textSecondary dark:text-finsim-dark-textSecondary font-medium tracking-[0.12em] uppercase overflow-hidden"
+                  whileHover={{ scale: 1.02 }}
+                >
+                  <span className="relative z-10">Beta</span>
+                  <motion.span
+                    className="absolute inset-0 bg-gradient-to-r from-finsim-primary/10 via-finsim-accent/10 to-finsim-primary/10 dark:from-finsim-dark-primary/15 dark:via-finsim-dark-accent/15 dark:to-finsim-dark-primary/15"
+                    animate={{
+                      x: ['-100%', '100%'],
+                    }}
+                    transition={{
+                      duration: 3,
+                      repeat: Infinity,
+                      repeatDelay: 2,
+                      ease: "easeInOut"
+                    }}
+                  />
+                </motion.span>
+              </motion.button>
           </div>
-          <div className="flex items-center gap-2">
+
+            {/* Right: Auth */}
+            <div className="flex items-center">
             {isAuthenticated && user ? (
               <UserMenu onOpenProfile={() => setShowProfileSettings(true)} />
             ) : (
@@ -771,54 +1065,472 @@ export default function Home() {
                 variant="outline"
                 size="sm"
                 onClick={() => setShowAuthModal(true)}
-                className="flex items-center gap-2"
+                  className="flex items-center gap-2 rounded-xl border-white/50 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur-xl hover:bg-white/80 dark:hover:bg-white/10 transition-all"
               >
                 <User className="h-4 w-4" />
-                <span className="hidden sm:inline">Anmelden</span>
+                  <span className="hidden sm:inline text-sm">Anmelden</span>
               </Button>
             )}
           </div>
-        </header>
+          </div>
+        </motion.header>
 
         {/* Main content */}
         <div className="space-y-8 sm:space-y-12">
           {!analysis && (
-            <>
-              <div className="text-center space-y-3 mb-12">
-                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight text-finsim-textMain dark:text-finsim-dark-textMain text-balance">
-                  Finanzszenarien
-                </h2>
-                <p className="text-base sm:text-lg text-finsim-textSecondary dark:text-finsim-dark-textSecondary max-w-2xl mx-auto leading-relaxed">
-                  Analysiere deine Finanzen basierend auf deinen Zielen
-                </p>
+            <div className="space-y-10">
+              <motion.section
+                ref={heroRef}
+                className="relative overflow-hidden glass-effect premium-shadow rounded-[32px] px-6 sm:px-10 py-10 sm:py-12"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, ease: "easeOut" }}
+              >
+                {/* Animated background gradients */}
+                <div className="absolute inset-0 bg-gradient-to-br from-finsim-primary/8 via-transparent to-finsim-accent/6" />
+                <motion.div
+                  className="absolute -top-20 -right-20 w-80 h-80 bg-finsim-primary/15 dark:bg-finsim-dark-primary/15 blur-3xl rounded-full"
+                  animate={{
+                    scale: [1, 1.2, 1],
+                    opacity: [0.3, 0.5, 0.3],
+                  }}
+                  transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+                />
+                <motion.div
+                  className="absolute -bottom-20 -left-20 w-72 h-72 bg-finsim-accent/10 dark:bg-finsim-dark-accent/10 blur-3xl rounded-full"
+                  animate={{
+                    scale: [1, 1.15, 1],
+                    opacity: [0.2, 0.4, 0.2],
+                  }}
+                  transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+                />
+
+              <div className="relative grid gap-8 lg:grid-cols-[1fr_1fr] items-center">
+            {/* Left Column - Content */}
+            <div className="space-y-5">
+              {/* Tagline */}
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.1 }}
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-finsim-primaryLight/40 dark:bg-finsim-dark-primaryLight/30 border border-finsim-primary/20 dark:border-finsim-dark-primary/20"
+              >
+                <Sparkles className="h-3.5 w-3.5 text-finsim-primary dark:text-finsim-dark-primary" />
+                <span className="text-[11px] font-semibold text-finsim-primary dark:text-finsim-dark-primary tracking-wide">
+                  Smart Finance Lab
+                </span>
+              </motion.div>
+
+              {/* Headline */}
+              <div className="space-y-3">
+                <motion.h2
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="text-3xl sm:text-4xl font-bold tracking-tight text-finsim-textMain dark:text-white text-balance leading-[1.1]"
+                >
+                  Finanzklarheit
+                  <br />
+                  <span className="bg-gradient-to-r from-finsim-primary to-finsim-accent dark:from-finsim-dark-primary dark:to-finsim-dark-accent bg-clip-text text-transparent">
+                    in Minuten
+                  </span>
+                </motion.h2>
+                <motion.p
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="text-base text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-relaxed"
+                >
+                  Ziel beschreiben, Daten hochladen, sofort verstehen – ob dein Plan realistisch ist.
+                </motion.p>
               </div>
 
-              <div className="space-y-8">
-                {/* Goal Input Section - Premium Redesign */}
-                <section className="glass-effect premium-shadow rounded-[24px] p-8 sm:p-10 space-y-8 animate-fade-in-up">
-                  {/* Header with more spacing */}
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-xl bg-gradient-to-br from-finsim-primary/10 to-purple-500/10 dark:from-finsim-dark-primary/20 dark:to-purple-500/20">
-                        <Lightbulb className="h-5 w-5 text-finsim-primary dark:text-finsim-dark-primary" />
+              {/* Quiz Button */}
+              {isAuthenticated && (
+                <motion.button
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setIsQuizOpen(true)}
+                  className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-finsim-primary to-finsim-accent dark:from-finsim-dark-primary dark:to-finsim-dark-accent text-white font-semibold shadow-lg hover:shadow-xl transition-all"
+                >
+                  <Sparkles className={`h-4 w-4 ${user?.quiz_profile ? "text-white" : "text-white"}`} />
+                  {user?.quiz_profile ? "Profil aktualisieren" : "Quiz starten"}
+                </motion.button>
+              )}
+            </div>
+
+            {/* Right Column - Quiz Profile Preview */}
+            <motion.div
+              className="relative rounded-[28px] glass-effect premium-shadow border border-white/40 dark:border-white/10 overflow-hidden"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.3, duration: 0.4 }}
+            >
+              {user?.quiz_profile && Object.keys(user.quiz_profile).length > 0 ? (
+                <>
+                  {/* Animated background */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-finsim-primary/10 via-transparent to-finsim-accent/8 pointer-events-none" />
+                  <motion.div
+                    className="absolute top-0 right-0 w-32 h-32 bg-finsim-primary/10 dark:bg-finsim-dark-primary/10 rounded-full blur-2xl"
+                    animate={{
+                      scale: [1, 1.2, 1],
+                      opacity: [0.3, 0.5, 0.3],
+                    }}
+                    transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                  />
+
+                  <div className="relative p-6 space-y-5">
+                    {/* Header */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-[0.4em] text-finsim-textMuted dark:text-finsim-dark-textMuted font-semibold mb-1">
+                          Dein Profil
+                        </p>
+                        <p className="text-lg font-bold text-finsim-textMain dark:text-white">Finanzprofil</p>
                       </div>
-                      <h3 className="text-2xl font-semibold text-finsim-textMain dark:text-finsim-dark-textMain tracking-tight">
-                        {greeting || "Dein finanzielles Ziel"}
-                      </h3>
+              </div>
+
+                    {/* Quiz Data Cards */}
+                    <div className="space-y-2.5">
+                      {Object.entries(user.quiz_profile).slice(0, 4).map(([key, value], idx) => {
+                        const emojis: Record<string, string> = {
+                          profession: "💼",
+                          net_income: "💸",
+                          fixed_costs: "🏠",
+                          main_goal: "🎯",
+                          risk_profile: "🎲",
+                          savings_rate: "📈",
+                          emergency_buffer: "💰",
+                        }
+                        const labels: Record<string, string> = {
+                          profession: "Beruf",
+                          net_income: "Einkommen",
+                          fixed_costs: "Fixkosten",
+                          main_goal: "Hauptziel",
+                          risk_profile: "Risikoprofil",
+                          savings_rate: "Sparquote",
+                          emergency_buffer: "Notgroschen",
+                        }
+                        const emoji = emojis[key] || "✨"
+                        const label = labels[key] || key
+                        const isEditing = editingQuizField === key
+                        const currentValue = isEditing ? (quizEditValues[key] !== undefined ? quizEditValues[key] : String(value)) : String(value)
+
+                        const handleSaveQuizField = async () => {
+                          if (!user?.quiz_profile) return
+                          
+                          setIsSavingQuiz(true)
+                          try {
+                            const updatedProfile = { ...user.quiz_profile, ...quizEditValues }
+                            await updateUserProfile({
+                              quiz_profile: updatedProfile,
+                            })
+                            await checkAuth()
+                            setEditingQuizField(null)
+                            setQuizEditValues({})
+                          } catch (err) {
+                            console.error("Failed to update quiz profile:", err)
+                          } finally {
+                            setIsSavingQuiz(false)
+                          }
+                        }
+
+                        const handleCancelEdit = () => {
+                          setEditingQuizField(null)
+                          setQuizEditValues({})
+                        }
+
+                        return (
+                          <motion.div
+                            key={key}
+                            initial={{ opacity: 0, x: 10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: 0.5 + idx * 0.1 }}
+                            whileHover={{ scale: isEditing ? 1 : 1.02, x: isEditing ? 0 : 2 }}
+                            className="group relative flex items-center gap-3 p-3 rounded-xl bg-white/60 dark:bg-white/5 border border-white/40 dark:border-white/10 hover:bg-white/80 dark:hover:bg-white/10 transition-all"
+                          >
+                            <span className="text-xl flex-shrink-0">{emoji}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] uppercase tracking-[0.2em] text-finsim-textMuted dark:text-finsim-dark-textMuted font-medium">
+                                {label}
+                              </p>
+                              {!isEditing ? (
+                                <>
+                                  <p className="text-sm font-semibold text-finsim-textMain dark:text-white truncate">
+                                    {String(value)}
+                                  </p>
+                                  <motion.button
+                                    onClick={() => {
+                                      setEditingQuizField(key)
+                                      setQuizEditValues({ [key]: String(value) })
+                                    }}
+                                    className="absolute top-2 right-2 p-1.5 rounded-lg bg-white/60 dark:bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    whileHover={{ scale: 1.1 }}
+                                    whileTap={{ scale: 0.9 }}
+                                  >
+                                    <Edit2 className="h-3 w-3 text-finsim-textSecondary dark:text-finsim-dark-textSecondary" />
+                                  </motion.button>
+                                </>
+                              ) : (
+                                <div className="space-y-2 mt-1">
+                                  <input
+                                    value={currentValue}
+                                    onChange={(e) => setQuizEditValues((prev) => ({ ...prev, [key]: e.target.value }))}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        handleSaveQuizField()
+                                      } else if (e.key === 'Escape') {
+                                        handleCancelEdit()
+                                      }
+                                    }}
+                                    autoFocus
+                                    className="w-full text-sm font-semibold text-finsim-textMain dark:text-white bg-white/80 dark:bg-white/10 border border-finsim-primary/40 dark:border-finsim-dark-primary/40 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-finsim-primary/40"
+                                  />
+                                  <div className="flex items-center gap-2">
+                                    <motion.button
+                                      onClick={handleSaveQuizField}
+                                      disabled={isSavingQuiz}
+                                      whileHover={{ scale: 1.05 }}
+                                      whileTap={{ scale: 0.95 }}
+                                      className="p-1 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 disabled:opacity-50"
+                                    >
+                                      <Check className="h-3.5 w-3.5" />
+                                    </motion.button>
+                                    <motion.button
+                                      onClick={handleCancelEdit}
+                                      disabled={isSavingQuiz}
+                                      whileHover={{ scale: 1.05 }}
+                                      whileTap={{ scale: 0.95 }}
+                                      className="p-1 rounded-lg bg-red-500/20 text-red-600 dark:text-red-400 disabled:opacity-50"
+                                    >
+                                      <X className="h-3.5 w-3.5" />
+                                    </motion.button>
+                                    <span className="text-[10px] text-finsim-textMuted dark:text-finsim-dark-textMuted ml-auto">
+                                      Enter zum Speichern
+                                    </span>
+                      </div>
+                                </div>
+                              )}
+                            </div>
+                          </motion.div>
+                        )
+                      })}
                     </div>
-                    <p className="text-base text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-relaxed pl-11">
+
+                    {/* Completion Badge - Only count filled fields */}
+                    {(() => {
+                      const totalFields = 7 // Total possible quiz fields
+                      const filledFields = Object.entries(user.quiz_profile).filter(([_, value]) => 
+                        value && String(value).trim() !== ''
+                      ).length
+                      const completenessPercentage = Math.round((filledFields / totalFields) * 100)
+                      
+                      return (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: 0.9 }}
+                          className="pt-3 border-t border-white/20 dark:border-white/10"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-finsim-textMuted dark:text-finsim-dark-textMuted">Vollständigkeit</span>
+                            <span className="text-sm font-bold text-finsim-primary dark:text-finsim-dark-primary">
+                              {completenessPercentage}%
+                            </span>
+                          </div>
+                          <div className="h-1.5 rounded-full bg-white/20 dark:bg-white/5 mt-2 overflow-hidden">
+                            <motion.div
+                              className="h-full rounded-full bg-gradient-to-r from-finsim-primary to-finsim-accent"
+                              initial={{ width: 0 }}
+                              animate={{ width: `${completenessPercentage}%` }}
+                              transition={{ delay: 1, duration: 0.8, ease: "easeOut" }}
+                            />
+                          </div>
+                        </motion.div>
+                      )
+                    })()}
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Empty State - Call to Action */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-finsim-primary/8 via-transparent to-finsim-accent/6 pointer-events-none" />
+                  <motion.div
+                    className="absolute top-0 right-0 w-40 h-40 bg-finsim-primary/10 dark:bg-finsim-dark-primary/10 rounded-full blur-2xl"
+                    animate={{
+                      scale: [1, 1.3, 1],
+                      x: [0, 15, 0],
+                      y: [0, -15, 0],
+                    }}
+                    transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+                  />
+
+                  <div className="relative p-6 space-y-5 text-center">
+                    <motion.div
+                      initial={{ scale: 0, rotate: -180 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                      className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-finsim-primary to-finsim-accent flex items-center justify-center shadow-xl"
+                    >
+                      <Sparkles className="h-8 w-8 text-white" />
+                    </motion.div>
+
+                    <div className="space-y-2">
+                      <motion.h3
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 }}
+                        className="text-xl font-bold text-finsim-textMain dark:text-white"
+                      >
+                        Profil erstellen
+                      </motion.h3>
+                      <motion.p
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                        className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary"
+                      >
+                        Erstelle dein Finanzprofil für personalisierte Empfehlungen
+                      </motion.p>
+                    </div>
+
+                    {isAuthenticated ? (
+                      <motion.button
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.4 }}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setIsQuizOpen(true)}
+                        className="w-full px-5 py-3 rounded-2xl bg-gradient-to-r from-finsim-primary to-finsim-accent dark:from-finsim-dark-primary dark:to-finsim-dark-accent text-white font-semibold shadow-lg hover:shadow-xl transition-all"
+                      >
+                        Quiz starten →
+                      </motion.button>
+                    ) : (
+                      <motion.button
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.4 }}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setShowAuthModal(true)}
+                        className="w-full px-5 py-3 rounded-2xl bg-gradient-to-r from-finsim-primary to-finsim-accent dark:from-finsim-dark-primary dark:to-finsim-dark-accent text-white font-semibold shadow-lg hover:shadow-xl transition-all"
+                      >
+                        Anmelden & Quiz starten →
+                      </motion.button>
+                    )}
+                  </div>
+                </>
+              )}
+            </motion.div>
+          </div>
+              </motion.section>
+
+              <div className="space-y-8">
+                {/* Goal Input Section - Premium Redesign with Gamification */}
+                <motion.section 
+                  className="relative glass-effect premium-shadow rounded-[28px] p-8 sm:p-10 space-y-8 animate-fade-in-up overflow-hidden"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6 }}
+                >
+                  {/* Animated Background Gradients */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-finsim-primary/8 via-transparent to-finsim-accent/6 pointer-events-none" />
+                  <motion.div
+                    className="absolute -top-20 -right-20 w-80 h-80 bg-finsim-primary/15 dark:bg-finsim-dark-primary/15 blur-3xl rounded-full"
+                    animate={{
+                      scale: [1, 1.2, 1],
+                      opacity: [0.3, 0.5, 0.3],
+                      x: [0, 30, 0],
+                      y: [0, -30, 0],
+                    }}
+                    transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+                  />
+                  <motion.div
+                    className="absolute -bottom-20 -left-20 w-72 h-72 bg-finsim-accent/10 dark:bg-finsim-dark-accent/10 blur-3xl rounded-full"
+                    animate={{
+                      scale: [1, 1.15, 1],
+                      opacity: [0.2, 0.4, 0.2],
+                      x: [0, -20, 0],
+                      y: [0, 20, 0],
+                    }}
+                    transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+                  />
+
+                  {/* Header with enhanced design */}
+                  <div className="relative space-y-4">
+                    <motion.div 
+                      className="flex items-center gap-4"
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.2 }}
+                    >
+                      <motion.div 
+                        className="relative p-3 rounded-2xl bg-gradient-to-br from-finsim-primary/20 via-finsim-primary/10 to-finsim-accent/20 dark:from-finsim-dark-primary/30 dark:via-finsim-dark-primary/20 dark:to-finsim-dark-accent/30 border border-finsim-primary/30 dark:border-finsim-dark-primary/30"
+                        whileHover={{ scale: 1.05, rotate: [0, -5, 5, 0] }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <Lightbulb className="h-6 w-6 text-finsim-primary dark:text-finsim-dark-primary" />
+                        <motion.div
+                          className="absolute inset-0 rounded-2xl bg-gradient-to-br from-finsim-primary/20 to-finsim-accent/20 blur-xl"
+                          animate={{
+                            opacity: [0.3, 0.6, 0.3],
+                          }}
+                          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                        />
+                      </motion.div>
+                      <div className="flex-1">
+                        <motion.h3 
+                          className="text-2xl sm:text-3xl font-bold text-finsim-textMain dark:text-finsim-dark-textMain tracking-tight"
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.3 }}
+                        >
+                        {greeting || "Dein finanzielles Ziel"}
+                        </motion.h3>
+                        <motion.div
+                          className="h-1 w-20 bg-gradient-to-r from-finsim-primary to-finsim-accent rounded-full mt-2"
+                          initial={{ width: 0 }}
+                          animate={{ width: 80 }}
+                          transition={{ delay: 0.5, duration: 0.6 }}
+                        />
+                    </div>
+                    </motion.div>
+                    <motion.p 
+                      className="text-base text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-relaxed pl-14"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.4 }}
+                    >
                       Beschreibe, was du erreichen möchtest oder welche finanzielle Entscheidung du treffen möchtest.
-                    </p>
+                    </motion.p>
                   </div>
 
-                  {/* Premium Input Field */}
-                  <div className="space-y-4">
+                  {/* Premium Input Field with enhanced styling */}
+                  <motion.div 
+                    className="relative space-y-4"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                  >
+                    <div className="relative">
+                      {/* Glow effect on focus */}
+                      <motion.div
+                        className="absolute inset-0 rounded-[22px] bg-gradient-to-r from-finsim-primary/20 via-finsim-accent/20 to-finsim-primary/20 blur-xl opacity-0"
+                        animate={{
+                          opacity: userGoal ? 0.3 : 0,
+                        }}
+                        transition={{ duration: 0.3 }}
+                      />
                     <textarea
                       id="goal"
                       value={userGoal}
                       onChange={(e) => setUserGoal(e.target.value)}
                       placeholder="Formuliere dein finanzielles Ziel … ich analysiere alles für dich."
-                      className="glass-input premium-shadow premium-hover w-full min-h-[70px] rounded-[22px] text-finsim-textMain dark:text-finsim-dark-textMain py-5 px-6 text-base font-normal placeholder:text-finsim-textMuted/60 dark:placeholder:text-finsim-dark-textMuted/60 focus:outline-none focus:ring-2 focus:ring-finsim-primary/30 dark:focus:ring-finsim-dark-primary/30 focus:border-transparent transition-all duration-300 resize-none leading-relaxed"
+                        className="relative glass-input premium-shadow premium-hover w-full min-h-[90px] rounded-[22px] text-finsim-textMain dark:text-finsim-dark-textMain py-5 px-6 text-base font-normal placeholder:text-finsim-textMuted/60 dark:placeholder:text-finsim-dark-textMuted/60 focus:outline-none focus:ring-2 focus:ring-finsim-primary/40 dark:focus:ring-finsim-dark-primary/40 focus:border-finsim-primary/50 dark:focus:border-finsim-dark-primary/50 transition-all duration-300 resize-none leading-relaxed border-2 border-transparent"
                       disabled={isLoading}
                       style={{
                         fontSize: '16px',
@@ -826,7 +1538,27 @@ export default function Home() {
                         fontWeight: 400
                       }}
                     />
+                      {/* Character counter / progress indicator */}
+                      {userGoal && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="absolute bottom-3 right-4 flex items-center gap-2"
+                        >
+                          <motion.div
+                            className="w-2 h-2 rounded-full bg-emerald-500"
+                            animate={{
+                              scale: [1, 1.2, 1],
+                            }}
+                            transition={{ duration: 1.5, repeat: Infinity }}
+                          />
+                          <span className="text-xs font-medium text-finsim-textMuted dark:text-finsim-dark-textMuted">
+                            {userGoal.length} Zeichen
+                          </span>
+                        </motion.div>
+                      )}
                   </div>
+                  </motion.div>
                   
                   {/* Interactive Draggable Pills */}
                   <DraggablePills
@@ -840,11 +1572,20 @@ export default function Home() {
                     }}
                     isLoading={isLoading}
                   />
-                </section>
+                </motion.section>
 
-                <FileUpload onFileSelect={handleFileSelect} isLoading={isLoading} />
+                <div ref={fileUploadRef}>
+                  <FileUpload
+                    onFileSelect={handleFileSelect}
+                    isLoading={isLoading}
+                    canUseQuizData={
+                      isAuthenticated && !!user?.quiz_profile && Object.keys(user.quiz_profile).length > 0
+                    }
+                    onUseQuizData={handleUseQuizData}
+                  />
               </div>
-            </>
+              </div>
+            </div>
           )}
 
           {error && (
@@ -859,7 +1600,10 @@ export default function Home() {
           {analysis ? (
             <div id="finsim-analysis-root" className="space-y-6">
               {/* Übersicht */}
-              <section className="glass-effect premium-shadow rounded-[24px] p-6 sm:p-8 space-y-6 animate-fade-in-up">
+              <section 
+                ref={financeSummaryRef}
+                className="glass-effect premium-shadow rounded-[24px] p-6 sm:p-8 space-y-6 animate-fade-in-up"
+              >
               {/* User Goal Display */}
               {userGoal && (
                   <div className="pb-4 border-b border-finsim-borderLight dark:border-finsim-dark-borderLight">
@@ -916,7 +1660,10 @@ export default function Home() {
               </div>
 
               {/* Charts */}
-              <section className="glass-effect premium-shadow rounded-[24px] p-6 sm:p-8 space-y-6 animate-fade-in-up">
+              <section 
+                ref={projectionsRef}
+                className="glass-effect premium-shadow rounded-[24px] p-6 sm:p-8 space-y-6 animate-fade-in-up"
+              >
                 <div className="space-y-1">
                   <h3 className="text-lg font-semibold text-finsim-textMain dark:text-finsim-dark-textMain tracking-tight">Projektionen</h3>
                   <p className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-relaxed">12-Monats-Vorschau der Szenarien</p>
@@ -969,7 +1716,10 @@ export default function Home() {
 
               {/* Vertiefte Analyse & KI-Empfehlungen - Redesigned */}
               {analysis && (plausibilityText || tipsText || scenarioAnalysisText || summaryText) && (
-                <section className="space-y-6 animate-fade-in-up">
+                <section 
+                  ref={deepAnalysisRef}
+                  className="space-y-6 animate-fade-in-up"
+                >
                   {/* Header */}
                   <div className="glass-effect premium-shadow rounded-[24px] p-6 sm:p-8">
                     <div className="flex items-center gap-3">
@@ -1326,7 +2076,23 @@ export default function Home() {
           open={showProfileSettings}
           onClose={() => setShowProfileSettings(false)}
           onProfileSaved={handleProfileSaved}
+          onOpenQuiz={() => {
+            setShowProfileSettings(false)
+            setIsQuizOpen(true)
+          }}
         />
+      {isAuthenticated && (
+        <QuizModal
+          open={isQuizOpen}
+          onClose={() => setIsQuizOpen(false)}
+          onCompleted={async () => {
+            await checkAuth()
+            setIsQuizOpen(false)
+          }}
+          existingProfile={user?.quiz_profile || undefined}
+          defaultProfession={user?.profession || undefined}
+        />
+      )}
       {isAuthenticated && (
         <AnalysisHistorySidebar
           open={showHistorySidebar}

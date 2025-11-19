@@ -1,14 +1,23 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { motion, PanInfo, useAnimation } from "framer-motion"
+import { motion, PanInfo, useAnimation, AnimatePresence } from "framer-motion"
 import { Label } from "@/components/ui/label"
-import { Sparkles } from "lucide-react"
+import { Sparkles, ChevronDown, ChevronUp } from "lucide-react"
 
 interface QuestionPill {
   id: string
   text: string
   isAI?: boolean
+}
+
+interface Category {
+  id: string
+  name: string
+  emoji: string
+  color: string
+  darkColor: string
+  questions: string[]
 }
 
 interface DraggablePillsProps {
@@ -18,6 +27,75 @@ interface DraggablePillsProps {
   onQuestionReorder?: (questions: string[]) => void
   isLoading?: boolean
 }
+
+// Категории с примерами вопросов
+const QUESTION_CATEGORIES: Category[] = [
+  {
+    id: "sparen",
+    name: "Sparen & Ziele",
+    emoji: "💰",
+    color: "emerald",
+    darkColor: "emerald",
+    questions: [
+      "Kann ich 500€ Autokredit monatlich zahlen?",
+      "Schaffe ich 10.000€ in 12 Monaten?",
+      "Erreiche ich 5.000€ Notgroschen in 6 Monaten?",
+      "Wie viel pro Monat für 20.000€ in 2 Jahren?"
+    ]
+  },
+  {
+    id: "wohnen",
+    name: "Wohnen & Miete",
+    emoji: "🏠",
+    color: "blue",
+    darkColor: "blue",
+    questions: [
+      "Sind 800€ Miete für mich realistisch?",
+      "Kann ich mir eine größere Wohnung leisten?",
+      "Trage ich eine 1.200€ Hypothekenrate?",
+      "Wie hoch darf meine Miete maximal sein?"
+    ]
+  },
+  {
+    id: "investieren",
+    name: "Investieren",
+    emoji: "📈",
+    color: "purple",
+    darkColor: "purple",
+    questions: [
+      "Wie viel kann ich monatlich in ETFs legen?",
+      "Ist jetzt ein guter Zeitpunkt für Aktien?",
+      "Kann ich mir eine Investment-Immobilie leisten?",
+      "Wie viel für meine Altersvorsorge zurücklegen?"
+    ]
+  },
+  {
+    id: "schulden",
+    name: "Schulden & Tilgung",
+    emoji: "💳",
+    color: "red",
+    darkColor: "red",
+    questions: [
+      "Wie schnell tilge ich meine Kreditkarte?",
+      "Lohnt sich eine Umschuldung für mich?",
+      "Welche monatliche Rate passt zur Tilgung?",
+      "Erst Schulden zahlen oder lieber sparen?"
+    ]
+  },
+  {
+    id: "große-anschaffungen",
+    name: "Große Anschaffungen",
+    emoji: "🚗",
+    color: "orange",
+    darkColor: "orange",
+    questions: [
+      "Kann ich ein 25.000€ Auto finanzieren?",
+      "Passt eine Küche für 8.000€ ins Budget?",
+      "Ist ein Urlaub für 3.000€ drin?",
+      "Wie viel darf eine große Anschaffung kosten?"
+    ]
+  }
+]
 
 export function DraggablePills({ 
   questions, 
@@ -32,6 +110,8 @@ export function DraggablePills({
   const [isDragOverInput, setIsDragOverInput] = useState(false)
   const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null)
   const [longPressedId, setLongPressedId] = useState<string | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [categoryQuestions, setCategoryQuestions] = useState<QuestionPill[]>([])
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Initialize questions with IDs - limit to 8 total (4 classic + 4 AI)
@@ -143,8 +223,114 @@ export function DraggablePills({
     setDragOverIndex(null)
   }
 
+  const handleCategoryClick = (categoryId: string) => {
+    if (selectedCategory === categoryId) {
+      setSelectedCategory(null)
+      setCategoryQuestions([])
+    } else {
+      setSelectedCategory(categoryId)
+      const category = QUESTION_CATEGORIES.find(c => c.id === categoryId)
+      if (category) {
+        const questions = category.questions.map((q, idx) => ({
+          id: `category-${categoryId}-${idx}`,
+          text: q,
+          isAI: false
+        }))
+        setCategoryQuestions(questions)
+      }
+    }
+  }
+
+  // Initialize questions with IDs - limit to 8 total (4 classic + 4 AI)
+  useEffect(() => {
+    const classicQuestions = questions.slice(0, 4).map((q, idx) => ({ 
+      id: `example-${idx}`, 
+      text: q,
+      isAI: false 
+    }))
+    const aiQuestions = suggestedQuestions.slice(0, 4).map((q, idx) => ({ 
+      id: `suggested-${idx}`, 
+      text: q,
+      isAI: true 
+    }))
+    // Mix questions for better visual distribution: Classic, AI, Classic, AI...
+    const allQuestions: QuestionPill[] = []
+    const maxLength = Math.max(classicQuestions.length, aiQuestions.length)
+    for (let i = 0; i < maxLength; i++) {
+      if (classicQuestions[i]) allQuestions.push(classicQuestions[i])
+      if (aiQuestions[i]) allQuestions.push(aiQuestions[i])
+    }
+    setPillQuestions(allQuestions.slice(0, 8))
+  }, [questions, suggestedQuestions])
+
+  const getColorClasses = (color: string) => {
+    const colorMap: Record<string, { bg: string; border: string; text: string; hover: string; dark: { bg: string; border: string; text: string; hover: string } }> = {
+      emerald: {
+        bg: "bg-emerald-50",
+        border: "border-emerald-400",
+        text: "text-emerald-700",
+        hover: "hover:bg-emerald-100",
+        dark: {
+          bg: "dark:bg-emerald-500/20",
+          border: "dark:border-emerald-500/50",
+          text: "dark:text-emerald-300",
+          hover: "dark:hover:bg-emerald-500/30"
+        }
+      },
+      blue: {
+        bg: "bg-blue-50",
+        border: "border-blue-400",
+        text: "text-blue-700",
+        hover: "hover:bg-blue-100",
+        dark: {
+          bg: "dark:bg-blue-500/20",
+          border: "dark:border-blue-500/50",
+          text: "dark:text-blue-300",
+          hover: "dark:hover:bg-blue-500/30"
+        }
+      },
+      purple: {
+        bg: "bg-purple-50",
+        border: "border-purple-400",
+        text: "text-purple-700",
+        hover: "hover:bg-purple-100",
+        dark: {
+          bg: "dark:bg-purple-500/20",
+          border: "dark:border-purple-500/50",
+          text: "dark:text-purple-300",
+          hover: "dark:hover:bg-purple-500/30"
+        }
+      },
+      red: {
+        bg: "bg-red-50",
+        border: "border-red-400",
+        text: "text-red-700",
+        hover: "hover:bg-red-100",
+        dark: {
+          bg: "dark:bg-red-500/20",
+          border: "dark:border-red-500/50",
+          text: "dark:text-red-300",
+          hover: "dark:hover:bg-red-500/30"
+        }
+      },
+      orange: {
+        bg: "bg-orange-50",
+        border: "border-orange-400",
+        text: "text-orange-700",
+        hover: "hover:bg-orange-100",
+        dark: {
+          bg: "dark:bg-orange-500/20",
+          border: "dark:border-orange-500/50",
+          text: "dark:text-orange-300",
+          hover: "dark:hover:bg-orange-500/30"
+        }
+      }
+    }
+    return colorMap[color] || colorMap.emerald
+  }
+
   return (
-    <div className="space-y-3 animate-fade-in-up-delay">
+    <div className="space-y-4 animate-fade-in-up-delay">
       <div className="flex items-center gap-2">
         <Sparkles className="h-4 w-4 text-finsim-primary dark:text-finsim-dark-primary" />
         <Label className="text-sm font-medium text-finsim-textSecondary dark:text-finsim-dark-textSecondary tracking-wide">
@@ -152,37 +338,137 @@ export function DraggablePills({
         </Label>
       </div>
 
-      {/* Pills Container - Full Display Layout */}
-      <div 
-        ref={containerRef}
-        className="relative flex flex-wrap gap-3 p-2 min-h-[60px] rounded-lg border border-transparent"
-        style={{
-          width: '100%',
-          justifyContent: 'flex-start',
-          alignContent: 'flex-start',
-        }}
-      >
-        {pillQuestions.map((pill, index) => (
-          <DraggablePill
-            key={pill.id}
-            pill={pill}
-            index={index}
-            isDragging={draggedIndex === index}
-            isDragOver={dragOverIndex === index}
-            isLongPressed={longPressedId === pill.id}
-            containerRef={containerRef}
-            onDragStart={() => handleDragStart(index)}
-            onDragEnd={handleDragEnd}
-            onDragOver={() => handleDragOver(index)}
-            onDragLeave={handleDragLeave}
-            onDragOverInput={setIsDragOverInput}
-            onClick={() => onQuestionSelect(pill.text)}
-            onLongPressStart={() => handleLongPress(pill.id)}
-            onLongPressEnd={handleLongPressEnd}
-            disabled={isLoading}
-          />
-        ))}
+      {/* Categories */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {QUESTION_CATEGORIES.map((category) => {
+          const isSelected = selectedCategory === category.id
+          const colors = getColorClasses(category.color)
+          return (
+            <motion.button
+              key={category.id}
+              onClick={() => handleCategoryClick(category.id)}
+              whileHover={{ scale: 1.05, y: -2 }}
+              whileTap={{ scale: 0.95 }}
+              className={`relative rounded-2xl p-4 border-2 transition-all duration-300 text-left ${
+                isSelected
+                  ? `${colors.bg} ${colors.dark.bg} ${colors.border} ${colors.dark.border} shadow-lg`
+                  : `bg-white/60 dark:bg-white/5 border-finsim-borderLight dark:border-finsim-dark-borderLight hover:${colors.border}/50 dark:hover:${colors.dark.border}/50`
+              }`}
+            >
+              <div className="flex flex-col items-center gap-2">
+                <motion.div
+                  className={`text-3xl ${isSelected ? '' : 'opacity-70'}`}
+                  animate={isSelected ? { scale: [1, 1.2, 1], rotate: [0, 10, -10, 0] } : {}}
+                  transition={{ duration: 0.5 }}
+                >
+                  {category.emoji}
+                </motion.div>
+                <span className={`text-xs font-semibold text-center ${isSelected ? `${colors.text} ${colors.dark.text}` : 'text-finsim-textSecondary dark:text-finsim-dark-textSecondary'}`}>
+                  {category.name}
+                </span>
+              </div>
+              {isSelected && (
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className="absolute top-2 right-2 w-5 h-5 bg-finsim-primary dark:bg-finsim-dark-primary rounded-full flex items-center justify-center"
+                >
+                  <ChevronUp className="h-3 w-3 text-white" />
+                </motion.div>
+              )}
+            </motion.button>
+          )
+        })}
       </div>
+
+      {/* Category Questions */}
+      <AnimatePresence>
+        {selectedCategory && categoryQuestions.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3 }}
+            className="space-y-3"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-finsim-textSecondary dark:text-finsim-dark-textSecondary">
+                Fragen aus dieser Kategorie
+              </span>
+              <motion.button
+                onClick={() => {
+                  setSelectedCategory(null)
+                  setCategoryQuestions([])
+                }}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                className="text-xs text-finsim-textMuted dark:text-finsim-dark-textMuted hover:text-finsim-textMain dark:hover:text-finsim-dark-textMain"
+              >
+                Schließen
+              </motion.button>
+            </div>
+            <div 
+              ref={containerRef}
+              className="relative flex flex-wrap gap-3 p-2 min-h-[60px] rounded-lg"
+            >
+              {categoryQuestions.map((pill, index) => (
+                <DraggablePill
+                  key={pill.id}
+                  pill={pill}
+                  index={index}
+                  isDragging={draggedIndex === index}
+                  isDragOver={dragOverIndex === index}
+                  isLongPressed={longPressedId === pill.id}
+                  containerRef={containerRef}
+                  onDragStart={() => handleDragStart(index)}
+                  onDragEnd={handleDragEnd}
+                  onDragOver={() => handleDragOver(index)}
+                  onDragLeave={handleDragLeave}
+                  onDragOverInput={setIsDragOverInput}
+                  onClick={() => onQuestionSelect(pill.text)}
+                  onLongPressStart={() => handleLongPress(pill.id)}
+                  onLongPressEnd={handleLongPressEnd}
+                  disabled={isLoading}
+                />
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Original Pills Container - Show when no category selected */}
+      {!selectedCategory && (
+        <div 
+          ref={containerRef}
+          className="relative flex flex-wrap gap-3 p-2 min-h-[60px] rounded-lg border border-transparent"
+          style={{
+            width: '100%',
+            justifyContent: 'flex-start',
+            alignContent: 'flex-start',
+          }}
+        >
+          {pillQuestions.map((pill, index) => (
+            <DraggablePill
+              key={pill.id}
+              pill={pill}
+              index={index}
+              isDragging={draggedIndex === index}
+              isDragOver={dragOverIndex === index}
+              isLongPressed={longPressedId === pill.id}
+              containerRef={containerRef}
+              onDragStart={() => handleDragStart(index)}
+              onDragEnd={handleDragEnd}
+              onDragOver={() => handleDragOver(index)}
+              onDragLeave={handleDragLeave}
+              onDragOverInput={setIsDragOverInput}
+              onClick={() => onQuestionSelect(pill.text)}
+              onLongPressStart={() => handleLongPress(pill.id)}
+              onLongPressEnd={handleLongPressEnd}
+              disabled={isLoading}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -373,6 +659,7 @@ function DraggablePill({
           border border-white/40 dark:border-white/10
           transition-all duration-200
           disabled:opacity-50 disabled:cursor-not-allowed
+          min-w-fit max-w-full
           ${isDragging ? 'ring-2 ring-finsim-primary/50 dark:ring-finsim-dark-primary/50 shadow-xl' : 'shadow-sm'}
           ${isDragOver && !isDragging ? 'ring-2 ring-emerald-400/50 dark:ring-emerald-500/50 border-emerald-400/70 dark:border-emerald-500/70 bg-emerald-50/50 dark:bg-emerald-900/20' : ''}
           ${isLongPressed ? 'ring-2 ring-finsim-primary/60 dark:ring-finsim-dark-primary/60' : ''}
@@ -389,7 +676,7 @@ function DraggablePill({
           transition: { duration: 0.4, times: [0, 0.5, 1], ease: "easeOut" }
         } : {}}
       >
-        <span className="relative z-10 whitespace-normal break-words inline-block text-left">
+        <span className="relative z-10 inline-block text-left text-[13px] leading-relaxed font-medium text-finsim-textMain dark:text-finsim-dark-textMain whitespace-normal break-words">
           {pill.text}
         </span>
         {isDragOver && !isDragging && (

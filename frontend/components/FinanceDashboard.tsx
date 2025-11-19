@@ -612,7 +612,7 @@ export function FinanceDashboard({ transactions }: FinanceDashboardProps) {
                                 ? (isDark ? `0 0 6px ${categoryColor}50` : `0 0 3px ${categoryColor}30`)
                                 : 'none'
                             }}
-                          >
+              >
                             {percent.toFixed(1)}%
                           </span>
                           <span 
@@ -638,7 +638,7 @@ export function FinanceDashboard({ transactions }: FinanceDashboardProps) {
                           style={{ 
                             backgroundColor: categoryColor,
                           }}
-                        />
+                />
                       </div>
                     </motion.div>
                   )
