@@ -242,6 +242,32 @@ async def update_user_profile(
     return serialize_user_response(current_user)
 
 
+@app.delete("/api/auth/profile/reset", response_model=UserResponse)
+async def reset_user_profile(
+    current_user: Optional[User] = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Reset user profile data (quiz profile, personal info, but keep email and password)"""
+    if current_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated"
+        )
+    
+    # Reset profile fields but keep email, password, and account status
+    current_user.full_name = None
+    current_user.profession = None
+    current_user.about_me = None
+    current_user.financial_goals = None
+    current_user.quiz_profile = None
+    current_user.avatar_url = None
+    
+    db.commit()
+    db.refresh(current_user)
+    
+    return serialize_user_response(current_user)
+
+
 @app.post("/api/auth/avatar")
 async def upload_avatar(
     file: UploadFile = File(...),

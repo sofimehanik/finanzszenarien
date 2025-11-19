@@ -260,6 +260,26 @@ export async function updateUserProfile(data: UserUpdate): Promise<UserInfo> {
   return response.json();
 }
 
+export async function resetUserProfile(): Promise<UserInfo> {
+  const response = await fetch(`${API_BASE_URL}/api/auth/profile/reset`, {
+    method: 'DELETE',
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error('Unauthorized');
+    }
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Failed to reset profile');
+  }
+
+  return response.json();
+}
+
 export async function saveQuizProfile(payload: QuizProfilePayload): Promise<UserInfo> {
   const response = await fetch(`${API_BASE_URL}/api/quiz/profile`, {
     method: 'POST',

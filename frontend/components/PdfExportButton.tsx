@@ -20,8 +20,6 @@ interface PdfExportButtonProps {
 }
 
 export default function PdfExportButton({ summary }: PdfExportButtonProps) {
-  if (typeof window === "undefined") return null
-
   const handleExport = useCallback(async () => {
     const root = document.getElementById("finsim-analysis-root")
     if (!root) {
@@ -125,6 +123,8 @@ export default function PdfExportButton({ summary }: PdfExportButtonProps) {
     const filename = `finsim-analyse-${new Date().toISOString().slice(0, 10)}.pdf`
     pdf.save(filename)
   }, [summary])
+
+  if (typeof window === "undefined") return null
 
   return (
     <button

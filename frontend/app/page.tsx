@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react"
 import { FileUpload } from "@/components/FileUpload"
-import { ScenarioCard } from "@/components/ScenarioCard"
+import { ScenarioOverview } from "@/components/ScenarioOverview"
 import { ScenarioChart } from "@/components/ScenarioChart"
 import { FinanceDashboard } from "@/components/FinanceDashboard"
 import PdfExportButton from "@/components/PdfExportButton"
@@ -11,7 +11,8 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { analyzeCSV, AnalysisResponse, getSuggestedQuestions, getTipDetails, updateUserProfile } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
-import { AlertCircle, Lightbulb, Globe, User, Brain, Sparkles, LogOut, Menu, ChevronDown, ChevronUp, X, Loader2, TrendingUp, FileText, CheckCircle, ArrowUp, ArrowDown, Minus, Edit2, Check } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { AlertCircle, Lightbulb, Globe, User, Brain, Sparkles, LogOut, Menu, ChevronDown, ChevronUp, X, Loader2, TrendingUp, TrendingDown, FileText, CheckCircle, ArrowUp, ArrowDown, Minus, Edit2, Check, BarChart3, Target, Info, ArrowRight, Zap, Shield } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { AuthModal } from "@/components/AuthModal"
 import { ProfileSettings } from "@/components/ProfileSettings"
@@ -545,6 +546,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null)
   const [userGoal, setUserGoal] = useState("")
   const [showAuthModal, setShowAuthModal] = useState(false)
+  const [scenarioSliderValue, setScenarioSliderValue] = useState(50) // For interactive range slider
   const [showProfileSettings, setShowProfileSettings] = useState(false)
   const [isQuizOpen, setIsQuizOpen] = useState(false)
   const [showHistorySidebar, setShowHistorySidebar] = useState(false)
@@ -957,12 +959,13 @@ export default function Home() {
         key={activeSection || 'default'}
         className={`absolute inset-0 bg-gradient-to-br ${getGradientClasses()} pointer-events-none`}
         initial={{ opacity: 0.3 }}
-        animate={{ opacity: [0.4, 0.6, 0.4] }}
+        animate={{ opacity: [0.4, 0.55, 0.4] }}
         transition={{
           opacity: {
             duration: 8,
             repeat: Infinity,
-            ease: "easeInOut"
+            ease: "easeInOut",
+            times: [0, 0.5, 1]
           },
           // Smooth transition when section changes
           layout: {
@@ -1091,18 +1094,29 @@ export default function Home() {
                 <motion.div
                   className="absolute -top-20 -right-20 w-80 h-80 bg-finsim-primary/15 dark:bg-finsim-dark-primary/15 blur-3xl rounded-full"
                   animate={{
-                    scale: [1, 1.2, 1],
-                    opacity: [0.3, 0.5, 0.3],
+                    scale: [1, 1.15, 1],
+                    opacity: [0.3, 0.45, 0.3],
                   }}
-                  transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+                  transition={{ 
+                    duration: 8, 
+                    repeat: Infinity, 
+                    ease: "easeInOut",
+                    times: [0, 0.5, 1]
+                  }}
                 />
                 <motion.div
                   className="absolute -bottom-20 -left-20 w-72 h-72 bg-finsim-accent/10 dark:bg-finsim-dark-accent/10 blur-3xl rounded-full"
                   animate={{
-                    scale: [1, 1.15, 1],
-                    opacity: [0.2, 0.4, 0.2],
+                    scale: [1, 1.12, 1],
+                    opacity: [0.2, 0.35, 0.2],
                   }}
-                  transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+                  transition={{ 
+                    duration: 10, 
+                    repeat: Infinity, 
+                    ease: "easeInOut", 
+                    delay: 1,
+                    times: [0, 0.5, 1]
+                  }}
                 />
 
               <div className="relative grid gap-8 lg:grid-cols-[1fr_1fr] items-center">
@@ -1148,6 +1162,7 @@ export default function Home() {
               {/* Quiz Button */}
               {isAuthenticated && (
                 <motion.button
+                  data-quiz-main-button
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.4 }}
@@ -1361,11 +1376,16 @@ export default function Home() {
                   <motion.div
                     className="absolute top-0 right-0 w-40 h-40 bg-finsim-primary/10 dark:bg-finsim-dark-primary/10 rounded-full blur-2xl"
                     animate={{
-                      scale: [1, 1.3, 1],
-                      x: [0, 15, 0],
-                      y: [0, -15, 0],
+                      scale: [1, 1.2, 1],
+                      x: [0, 12, 0],
+                      y: [0, -12, 0],
                     }}
-                    transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+                    transition={{ 
+                      duration: 5, 
+                      repeat: Infinity, 
+                      ease: "easeInOut",
+                      times: [0, 0.5, 1]
+                    }}
                   />
 
                   <div className="relative p-6 space-y-5 text-center">
@@ -1398,17 +1418,64 @@ export default function Home() {
                     </div>
 
                     {isAuthenticated ? (
-                      <motion.button
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.4 }}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setIsQuizOpen(true)}
-                        className="w-full px-5 py-3 rounded-2xl bg-gradient-to-r from-finsim-primary to-finsim-accent dark:from-finsim-dark-primary dark:to-finsim-dark-accent text-white font-semibold shadow-lg hover:shadow-xl transition-all"
-                      >
-                        Quiz starten →
-                      </motion.button>
+                      user?.quiz_profile ? (
+                        <motion.button
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.4 }}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => setIsQuizOpen(true)}
+                          className="w-full px-5 py-3 rounded-2xl bg-gradient-to-r from-finsim-primary to-finsim-accent dark:from-finsim-dark-primary dark:to-finsim-dark-accent text-white font-semibold shadow-lg hover:shadow-xl transition-all"
+                        >
+                          Quiz starten →
+                        </motion.button>
+                      ) : (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.4 }}
+                          className="space-y-3 pt-2"
+                        >
+                          <div className="space-y-2.5">
+                            {[
+                              {
+                                icon: Zap,
+                                text: "Personalisierte Analysen",
+                                iconColor: "text-yellow-500 dark:text-yellow-400",
+                                bgColor: "from-yellow-500/20 to-yellow-400/10 dark:from-yellow-500/20 dark:to-yellow-400/10"
+                              },
+                              {
+                                icon: Target,
+                                text: "Präzise Zielsetzung",
+                                iconColor: "text-blue-500 dark:text-blue-400",
+                                bgColor: "from-blue-500/20 to-blue-400/10 dark:from-blue-500/20 dark:to-blue-400/10"
+                              },
+                              {
+                                icon: Shield,
+                                text: "Sichere Datenverarbeitung",
+                                iconColor: "text-emerald-500 dark:text-emerald-400",
+                                bgColor: "from-emerald-500/20 to-emerald-400/10 dark:from-emerald-500/20 dark:to-emerald-400/10"
+                              }
+                            ].map((item, idx) => (
+                              <motion.div
+                                key={idx}
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: 0.5 + idx * 0.1 }}
+                                className="flex items-center gap-3 p-2.5 rounded-xl bg-white/40 dark:bg-white/5 border border-finsim-borderLight/30 dark:border-finsim-dark-borderLight/30 hover:bg-white/60 dark:hover:bg-white/10 transition-colors"
+                              >
+                                <div className={cn("p-1.5 rounded-lg bg-gradient-to-br", item.bgColor)}>
+                                  <item.icon className={cn("h-4 w-4", item.iconColor)} />
+                                </div>
+                                <span className="text-xs font-medium text-finsim-textMain dark:text-finsim-dark-textMain">
+                                  {item.text}
+                                </span>
+                              </motion.div>
+                            ))}
+                          </div>
+                        </motion.div>
+                      )
                     ) : (
                       <motion.button
                         initial={{ opacity: 0, y: 10 }}
@@ -1477,9 +1544,14 @@ export default function Home() {
                         <motion.div
                           className="absolute inset-0 rounded-2xl bg-gradient-to-br from-finsim-primary/20 to-finsim-accent/20 blur-xl"
                           animate={{
-                            opacity: [0.3, 0.6, 0.3],
+                            opacity: [0.3, 0.5, 0.3],
                           }}
-                          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                          transition={{ 
+                            duration: 2, 
+                            repeat: Infinity, 
+                            ease: "easeInOut",
+                            times: [0, 0.5, 1]
+                          }}
                         />
                       </motion.div>
                       <div className="flex-1">
@@ -1548,9 +1620,14 @@ export default function Home() {
                           <motion.div
                             className="w-2 h-2 rounded-full bg-emerald-500"
                             animate={{
-                              scale: [1, 1.2, 1],
+                              scale: [1, 1.15, 1],
                             }}
-                            transition={{ duration: 1.5, repeat: Infinity }}
+                            transition={{ 
+                              duration: 1.5, 
+                              repeat: Infinity,
+                              ease: "easeInOut",
+                              times: [0, 0.5, 1]
+                            }}
                           />
                           <span className="text-xs font-medium text-finsim-textMuted dark:text-finsim-dark-textMuted">
                             {userGoal.length} Zeichen
@@ -1602,62 +1679,111 @@ export default function Home() {
               {/* Übersicht */}
               <section 
                 ref={financeSummaryRef}
-                className="glass-effect premium-shadow rounded-[24px] p-6 sm:p-8 space-y-6 animate-fade-in-up"
+                className="glass-effect premium-shadow rounded-2xl p-5 sm:p-6 space-y-5 animate-fade-in-up relative overflow-hidden"
               >
-              {/* User Goal Display */}
+                {/* User Goal Display - Always Visible */}
               {userGoal && (
-                  <div className="pb-4 border-b border-finsim-borderLight dark:border-finsim-dark-borderLight">
-                  <div className="flex items-start gap-3">
-                    <Lightbulb className="h-5 w-5 text-finsim-primary dark:text-finsim-dark-primary flex-shrink-0 mt-0.5" />
-                    <div className="space-y-1 flex-1">
-                      <h3 className="text-sm font-medium text-finsim-textSecondary dark:text-finsim-dark-textSecondary uppercase tracking-wide">Dein Ziel</h3>
-                      <p className="text-base text-finsim-textMain dark:text-finsim-dark-textMain">{userGoal}</p>
+                  <motion.div
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="pb-4 border-b border-finsim-borderLight/50 dark:border-finsim-dark-borderLight/50 relative z-10"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-1.5 rounded-lg bg-finsim-primary/10 dark:bg-finsim-dark-primary/20">
+                        <Target className="h-4 w-4 text-finsim-primary dark:text-finsim-dark-primary" />
                     </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-medium text-finsim-textMuted dark:text-finsim-dark-textMuted uppercase tracking-wider mb-0.5">
+                          Dein Ziel
+                        </p>
+                        <p className="text-sm font-medium text-finsim-textMain dark:text-white truncate">
+                          {userGoal}
+                        </p>
                   </div>
-                  </div>
+                    </div>
+                  </motion.div>
                 )}
                 
-                <div className="space-y-1">
-                  <h3 className="text-lg font-semibold text-finsim-textMain dark:text-finsim-dark-textMain tracking-tight">Finanzübersicht</h3>
-                  <p className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-relaxed">
-                    Basierend auf deinen hochgeladenen Daten
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium text-finsim-textSecondary dark:text-finsim-dark-textSecondary">Gesamteinnahmen</p>
-                    <p className="text-xl font-semibold font-mono text-finsim-accent dark:text-finsim-dark-accent">
-                      {analysis.finance_data.total_income.toFixed(2)} €
+                <div className="relative z-10">
+                  <div className="mb-5">
+                    <h3 className="text-base font-semibold text-finsim-textMain dark:text-white tracking-tight mb-1">
+                      Finanzübersicht
+                    </h3>
+                    <p className="text-xs text-finsim-textMuted dark:text-finsim-dark-textMuted">
+                      Basierend auf deinen Daten
                     </p>
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium text-finsim-textSecondary dark:text-finsim-dark-textSecondary">Gesamtausgaben</p>
-                    <p className="text-xl font-semibold font-mono text-red-500 dark:text-red-400">
-                      {analysis.finance_data.total_expenses.toFixed(2)} €
-                    </p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium text-finsim-textSecondary dark:text-finsim-dark-textSecondary">Aktuelles Guthaben</p>
-                    <p className="text-xl font-semibold font-mono text-finsim-textMain dark:text-finsim-dark-textMain">
-                      {analysis.finance_data.net_balance >= 0 ? "+" : ""}
-                      {analysis.finance_data.net_balance.toFixed(2)} €
-                    </p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium text-finsim-textSecondary dark:text-finsim-dark-textSecondary">Transaktionen</p>
-                    <p className="text-xl font-semibold font-mono text-finsim-textMain dark:text-finsim-dark-textMain">
-                      {analysis.finance_data.transaction_count}
-                    </p>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {[
+                      {
+                        label: "Einnahmen",
+                        value: analysis.finance_data.total_income,
+                        color: "text-emerald-600 dark:text-emerald-400",
+                        icon: TrendingUp,
+                        delay: 0.1
+                      },
+                      {
+                        label: "Ausgaben",
+                        value: analysis.finance_data.total_expenses,
+                        color: "text-red-500 dark:text-red-400",
+                        icon: TrendingDown,
+                        delay: 0.15
+                      },
+                      {
+                        label: "Guthaben",
+                        value: analysis.finance_data.net_balance,
+                        color: analysis.finance_data.net_balance >= 0 
+                          ? "text-emerald-600 dark:text-emerald-400" 
+                          : "text-red-600 dark:text-red-400",
+                        icon: analysis.finance_data.net_balance >= 0 ? TrendingUp : TrendingDown,
+                        delay: 0.2
+                      },
+                      {
+                        label: "Transaktionen",
+                        value: analysis.finance_data.transaction_count,
+                        color: "text-blue-600 dark:text-blue-400",
+                        icon: FileText,
+                        delay: 0.25,
+                        isCount: true
+                      }
+                    ].map((metric, idx) => {
+                      const Icon = metric.icon
+                      return (
+                        <motion.div
+                          key={metric.label}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ 
+                            duration: 0.3, 
+                            delay: metric.delay,
+                            ease: "easeOut"
+                          }}
+                          className="p-3 rounded-lg bg-white/50 dark:bg-white/5 border border-finsim-borderLight/50 dark:border-finsim-dark-borderLight/50 hover:bg-white/70 dark:hover:bg-white/10 transition-colors"
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <Icon className={cn("h-3.5 w-3.5", metric.color)} />
+                            <p className="text-[10px] font-medium text-finsim-textMuted dark:text-finsim-dark-textMuted uppercase tracking-wider">
+                              {metric.label}
+                            </p>
+              </div>
+                          <p className={cn("text-lg font-bold font-mono", metric.color)}>
+                            {metric.isCount 
+                              ? metric.value.toLocaleString()
+                              : `${metric.value >= 0 ? "+" : ""}${metric.value.toFixed(2)} €`}
+                          </p>
+                        </motion.div>
+                      )
+                    })}
                   </div>
                 </div>
               </section>
 
-              {/* Szenarien Cards */}
-              <div className="grid md:grid-cols-3 gap-4">
-                <ScenarioCard scenario={analysis.scenarios.best_case} type="best_case" />
-                <ScenarioCard scenario={analysis.scenarios.realistic_case} type="realistic_case" />
-                <ScenarioCard scenario={analysis.scenarios.worst_case} type="worst_case" />
-              </div>
+              {/* Szenarien Overview */}
+              {analysis && analysis.scenarios && (
+                <ScenarioOverview analysis={analysis} />
+              )}
 
               {/* Charts */}
               <section 
@@ -1715,7 +1841,7 @@ export default function Home() {
               )}
 
               {/* Vertiefte Analyse & KI-Empfehlungen - Redesigned */}
-              {analysis && (plausibilityText || tipsText || scenarioAnalysisText || summaryText) && (
+              {analysis && (plausibilityText || tipsText || summaryText) && (
                 <section 
                   ref={deepAnalysisRef}
                   className="space-y-6 animate-fade-in-up"
@@ -1732,7 +1858,7 @@ export default function Home() {
                     </h3>
                     <p className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-relaxed">
                           Individuelle Auswertung deiner Daten durch KI
-                        </p>
+                    </p>
                       </div>
                       <div className="inline-flex items-center gap-2 rounded-full bg-finsim-primaryLight dark:bg-finsim-dark-primaryLight px-3 py-1.5">
                         <Brain className="h-3.5 w-3.5 text-finsim-primary dark:text-finsim-dark-primary" />
@@ -1743,60 +1869,598 @@ export default function Home() {
                     </div>
                   </div>
                   
-                  {/* Plausibilitätsanalyse */}
-                  {plausibilityText && (
+                  {/* Plausibilitätsanalyse - Enhanced with More Information */}
+                  {plausibilityText && analysis && (
                     <motion.div 
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
-                      className="glass-effect premium-shadow rounded-[24px] p-6 sm:p-8 space-y-5 animate-fade-in-up"
+                      className="glass-effect premium-shadow rounded-2xl p-5 sm:p-6 space-y-5 animate-fade-in-up"
                     >
                       <div className="flex items-center gap-3">
                         <motion.div 
                           initial={{ scale: 0 }}
                           animate={{ scale: 1 }}
-                          transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-                          className="p-2.5 rounded-xl bg-gradient-to-br from-blue-500/10 to-indigo-500/10 dark:from-blue-500/20 dark:to-indigo-500/20 relative overflow-hidden"
+                          transition={{ delay: 0.2, type: "spring", stiffness: 200, damping: 20 }}
+                          className="p-2 rounded-xl bg-gradient-to-br from-blue-500/10 to-indigo-500/10 dark:from-blue-500/20 dark:to-indigo-500/20"
                         >
-                          <motion.div
-                            animate={{ 
-                              rotate: [0, 360],
-                            }}
-                            transition={{ 
-                              duration: 20,
-                              repeat: Infinity,
-                              ease: "linear"
-                            }}
-                            className="absolute inset-0 bg-gradient-to-br from-blue-400/20 to-indigo-400/20"
-                          />
-                          <Brain className="h-5 w-5 text-blue-600 dark:text-blue-400 relative z-10" />
+                          <Brain className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         </motion.div>
                         <div className="space-y-0.5 flex-1">
                           <h4 className="text-base font-semibold text-finsim-textMain dark:text-finsim-dark-textMain tracking-tight">
                             Plausibilitätsanalyse
                           </h4>
                           <p className="text-xs text-finsim-textSecondary dark:text-finsim-dark-textSecondary">
-                            Bewertung, wie realistisch die Szenarien im Kontext deines Ziels sind.
+                            Bewertung der Szenarien basierend auf deinen Finanzdaten
                           </p>
                         </div>
                       </div>
-                      <div className="space-y-4 pt-2">
+
+                      {/* Goal Achievement Analysis - Gamified */}
+                      {analysis?.finance_data?.monthly_averages && (() => {
+                        const monthlySavings = (analysis.finance_data.monthly_averages.income ?? 0) - (analysis.finance_data.monthly_averages.expenses ?? 0)
+                        const realisticFinal = analysis.scenarios.realistic_case.final_balance
+                        const bestFinal = analysis.scenarios.best_case.final_balance
+                        const worstFinal = analysis.scenarios.worst_case.final_balance
+                        
+                        // Calculate probability based on scenarios
+                        const avgFinal = (realisticFinal + bestFinal + worstFinal) / 3
+                        const range = Math.abs(bestFinal - worstFinal)
+                        const avgAbs = Math.abs(avgFinal) || 1
+                        // Confidence: higher when range is smaller relative to average
+                        const confidence = range > 0 
+                          ? Math.max(50, Math.min(95, 100 - (range / avgAbs * 30))) 
+                          : 85
+                        
+                        // Estimate months to reach realistic scenario (simplified)
+                        const monthsToReach = monthlySavings > 0 
+                          ? Math.ceil(Math.abs(realisticFinal) / monthlySavings) 
+                          : null
+                        
+                        return (
+                          <div className="space-y-4">
+                            {/* Confidence Score - Gamified */}
+                            <motion.div
+                              initial={{ opacity: 0, scale: 0.95 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              transition={{ delay: 0.1, type: "spring", stiffness: 200, damping: 20 }}
+                              className="p-4 rounded-xl bg-gradient-to-br from-blue-500/10 via-indigo-500/10 to-purple-500/10 dark:from-blue-500/15 dark:via-indigo-500/15 dark:to-purple-500/15 border border-blue-500/20 dark:border-blue-500/30 relative overflow-hidden"
+                            >
+                              <motion.div
+                                className="absolute inset-0 opacity-10"
+                                animate={{
+                                  backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
+                                }}
+                                transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+                                style={{
+                                  background: "linear-gradient(90deg, rgba(59,130,246,0.2) 0%, rgba(99,102,241,0.2) 50%, rgba(147,51,234,0.2) 100%)",
+                                  backgroundSize: "200% 200%"
+                                }}
+                              />
+                              <div className="relative z-10">
+                                <div className="flex items-center justify-between mb-3">
+                                  <div>
+                                    <p className="text-[10px] uppercase tracking-wider text-finsim-textMuted dark:text-finsim-dark-textMuted mb-1">
+                                      Prognose-Zuverlässigkeit
+                                    </p>
+                                    <p className="text-xs text-finsim-textSecondary dark:text-finsim-dark-textSecondary">
+                                      Basierend auf deinen Daten
+                                    </p>
+                                  </div>
+                                  <motion.div
+                                    initial={{ scale: 0, rotate: -180 }}
+                                    animate={{ scale: 1, rotate: 0 }}
+                                    transition={{ 
+                                      delay: 0.3, 
+                                      type: "spring", 
+                                      stiffness: 200,
+                                      damping: 20
+                                    }}
+                                    className="relative"
+                                  >
+                                    <motion.div
+                                      animate={{ rotate: 360 }}
+                                      transition={{ 
+                                        duration: 30, 
+                                        repeat: Infinity, 
+                                        ease: "linear" 
+                                      }}
+                                      className="absolute inset-0 rounded-full border-2 border-blue-500/20"
+                                    />
+                                    <motion.div
+                                      animate={{ 
+                                        scale: [1, 1.04, 1],
+                                        opacity: [0.85, 1, 0.85]
+                                      }}
+                                      transition={{ 
+                                        duration: 3, 
+                                        repeat: Infinity, 
+                                        ease: "easeInOut",
+                                        times: [0, 0.5, 1]
+                                      }}
+                                      className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500/20 to-indigo-500/20 dark:from-blue-500/30 dark:to-indigo-500/30 flex items-center justify-center border-2 border-blue-500/30"
+                                    >
+                                      <motion.p 
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        transition={{ delay: 0.5 }}
+                                        className="text-lg font-bold text-blue-600 dark:text-blue-400"
+                                      >
+                                        {Math.round(confidence)}%
+                                      </motion.p>
+                                    </motion.div>
+                                  </motion.div>
+                  </div>
+                  
+                                {/* Animated Progress Bar */}
+                                <div className="relative h-2.5 bg-white/20 dark:bg-white/10 rounded-full overflow-hidden">
+                                  <motion.div
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${confidence}%` }}
+                                    transition={{ 
+                                      delay: 0.5, 
+                                      duration: 1.5, 
+                                      ease: [0.4, 0, 0.2, 1]
+                                    }}
+                                    className="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 rounded-full"
+                                  >
+                                    <motion.div
+                                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent"
+                                      animate={{
+                                        x: ["-100%", "200%"],
+                                      }}
+                                      transition={{
+                                        duration: 2.5,
+                                        repeat: Infinity,
+                                        ease: "linear",
+                                        repeatDelay: 0.5
+                                      }}
+                                    />
+                                  </motion.div>
+                                  <motion.div
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    transition={{ delay: 0.7 }}
+                                    className="absolute inset-0 flex items-center justify-end pr-2"
+                                  >
+                                    <div className="w-1 h-full bg-white/50 rounded-full" />
+                                  </motion.div>
+                                </div>
+                              </div>
+                            </motion.div>
+
+                            {/* Time to Goal - Gamified */}
+                            {userGoal && monthsToReach && monthsToReach > 0 && (
+                              <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.2 }}
+                                className="p-4 rounded-xl bg-gradient-to-br from-emerald-500/10 to-teal-500/10 dark:from-emerald-500/15 dark:to-teal-500/15 border border-emerald-500/20 dark:border-emerald-500/30"
+                              >
+                                <div className="flex items-center gap-3 mb-3">
+                                  <motion.div
+                                    animate={{ scale: [1, 1.08, 1] }}
+                                    transition={{ 
+                                      duration: 2, 
+                                      repeat: Infinity, 
+                                      ease: "easeInOut",
+                                      times: [0, 0.5, 1]
+                                    }}
+                                    className="p-2 rounded-lg bg-emerald-500/20 dark:bg-emerald-500/30"
+                                  >
+                                    <Target className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                  </motion.div>
+                                  <div className="flex-1">
+                                    <p className="text-xs font-semibold text-finsim-textMain dark:text-white mb-0.5">
+                                      Geschätzte Zeitspanne
+                                    </p>
+                                    <p className="text-[10px] text-finsim-textSecondary dark:text-finsim-dark-textSecondary">
+                                      {monthsToReach <= 12 
+                                        ? `Erreichbar in ${monthsToReach} ${monthsToReach === 1 ? 'Monat' : 'Monaten'}`
+                                        : `Erreichbar in ca. ${Math.round(monthsToReach / 12 * 10) / 10} Jahren`}
+                                    </p>
+                                  </div>
+                                </div>
+                                
+                                {/* Progress Indicator */}
+                                <div className="flex items-center gap-2">
+                                  {Array.from({ length: 12 }).map((_, idx) => {
+                                    const isActive = idx < Math.min(monthsToReach, 12)
+                                    return (
+                                      <motion.div
+                                        key={idx}
+                                        initial={{ scale: 0 }}
+                                        animate={{ scale: 1 }}
+                                        transition={{ delay: 0.3 + idx * 0.05 }}
+                                        className={cn(
+                                          "h-1.5 flex-1 rounded-full",
+                                          isActive 
+                                            ? "bg-emerald-500 dark:bg-emerald-400" 
+                                            : "bg-white/20 dark:bg-white/10"
+                                        )}
+                                      />
+                                    )
+                                  })}
+                                </div>
+                              </motion.div>
+                            )}
+
+                            {/* Monthly Savings Potential - If no goal */}
+                            {!userGoal && monthlySavings > 0 && (
+                              <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.2 }}
+                                className="p-4 rounded-xl bg-gradient-to-br from-emerald-500/10 to-teal-500/10 dark:from-emerald-500/15 dark:to-teal-500/15 border border-emerald-500/20 dark:border-emerald-500/30"
+                              >
+                                <div className="flex items-center gap-3 mb-3">
+                                  <motion.div
+                                    animate={{ scale: [1, 1.08, 1] }}
+                                    transition={{ 
+                                      duration: 2, 
+                                      repeat: Infinity, 
+                                      ease: "easeInOut",
+                                      times: [0, 0.5, 1]
+                                    }}
+                                    className="p-2 rounded-lg bg-emerald-500/20 dark:bg-emerald-500/30"
+                                  >
+                                    <TrendingUp className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                  </motion.div>
+                                  <div className="flex-1">
+                                    <p className="text-xs font-semibold text-finsim-textMain dark:text-white mb-0.5">
+                                      Sparpotenzial
+                                    </p>
+                                    <p className="text-[10px] text-finsim-textSecondary dark:text-finsim-dark-textSecondary">
+                                      {monthlySavings >= 0 ? "+" : ""}{monthlySavings.toFixed(2)} € monatlich möglich
+                                    </p>
+                                  </div>
+                                </div>
+                                
+                                {/* Potential visualization */}
+                                <div className="space-y-2">
+                                  <div className="flex justify-between text-[10px] text-finsim-textMuted dark:text-finsim-dark-textMuted">
+                                    <span>Realistisch: {realisticFinal >= 0 ? "+" : ""}{realisticFinal.toFixed(0)} €</span>
+                                    <span>Best Case: {bestFinal >= 0 ? "+" : ""}{bestFinal.toFixed(0)} €</span>
+                                  </div>
+                                  <div className="relative h-2 bg-white/20 dark:bg-white/10 rounded-full overflow-hidden">
+                                    <motion.div
+                                      initial={{ width: 0 }}
+                                      animate={{ width: "100%" }}
+                                      transition={{ delay: 0.4, duration: 1, ease: "easeOut" }}
+                                      className="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-500 via-emerald-500 to-emerald-600 rounded-full"
+                                    />
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+
+                            {/* Interactive Scenario Range Slider - Gamified */}
+                            {analysis?.scenarios && (() => {
+                              // Improved interpolation with clamping
+                              const getInterpolatedValue = (value: number) => {
+                                const clamped = Math.max(0, Math.min(100, value))
+                                if (clamped <= 50) {
+                                  const ratio = clamped / 50
+                                  return worstFinal + (realisticFinal - worstFinal) * ratio
+                                } else {
+                                  const ratio = (clamped - 50) / 50
+                                  return realisticFinal + (bestFinal - realisticFinal) * ratio
+                                }
+                              }
+                              
+                              const currentValue = getInterpolatedValue(scenarioSliderValue)
+                              const difference = currentValue - realisticFinal
+                              
+                              const getScenarioLabel = (value: number) => {
+                                if (value < 25) return "Konservativ"
+                                if (value < 75) return "Realistisch"
+                                return "Optimistisch"
+                              }
+                              
+                              return (
+                                <motion.div
+                                  initial={{ opacity: 0, y: 10 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  transition={{ delay: 0.3 }}
+                                  className="p-4 rounded-xl bg-gradient-to-br from-slate-500/10 via-gray-500/10 to-slate-500/10 dark:from-slate-500/15 dark:via-gray-500/15 dark:to-slate-500/15 border border-slate-500/20 dark:border-slate-500/30 relative overflow-hidden"
+                                >
+                                  {/* Subtle animated background */}
+                                  <motion.div
+                                    className="absolute inset-0 opacity-[0.02]"
+                                    animate={{
+                                      backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
+                                    }}
+                                    transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                                    style={{
+                                      background: "linear-gradient(90deg, rgba(239,68,68,0.1) 0%, rgba(59,130,246,0.1) 50%, rgba(16,185,129,0.1) 100%)",
+                                      backgroundSize: "200% 200%"
+                                    }}
+                                  />
+                                  
+                                  <div className="relative z-10">
+                                    <div className="flex items-center justify-between mb-4">
+                                      <div>
+                                        <p className="text-xs font-semibold text-finsim-textMain dark:text-white mb-1">
+                                          Mögliche Spannweite
+                                        </p>
+                                        <p className="text-[10px] text-finsim-textSecondary dark:text-finsim-dark-textSecondary">
+                                          Erkunde verschiedene Szenarien
+                                        </p>
+                                      </div>
+                                      <motion.div
+                                        key={Math.round(scenarioSliderValue)}
+                                        initial={{ scale: 0.9, opacity: 0 }}
+                                        animate={{ scale: 1, opacity: 1 }}
+                                        transition={{ duration: 0.2 }}
+                                        className={cn(
+                                          "px-3 py-1.5 rounded-lg text-xs font-bold font-mono",
+                                          scenarioSliderValue < 25 ? "bg-red-500/20 text-red-600 dark:text-red-400" :
+                                          scenarioSliderValue < 75 ? "bg-blue-500/20 text-blue-600 dark:text-blue-400" :
+                                          "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                                        )}
+                                      >
+                                        {currentValue >= 0 ? "+" : ""}{currentValue.toFixed(0)} €
+                                      </motion.div>
+                                    </div>
+                                    
+                                    {/* Interactive Slider Track */}
+                                    <div className="relative mb-6">
+                                      {/* Background gradient track */}
+                                      <div className="relative h-3 bg-white/10 dark:bg-white/5 rounded-full overflow-hidden">
+                                        <div className="absolute inset-0 flex">
+                                          <motion.div 
+                                            className="flex-1 bg-gradient-to-r from-red-500/30 to-red-500/20"
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            transition={{ delay: 0.4 }}
+                                          />
+                                          <motion.div 
+                                            className="flex-1 bg-gradient-to-r from-red-500/20 via-blue-500/30 to-blue-500/20"
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            transition={{ delay: 0.5 }}
+                                          />
+                                          <motion.div 
+                                            className="flex-1 bg-gradient-to-r from-blue-500/20 via-emerald-500/30 to-emerald-500/20"
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            transition={{ delay: 0.6 }}
+                                          />
+                                        </div>
+                                        
+                                        {/* Interactive Slider Handle */}
+                                        <div className="relative w-full h-full">
+                                          {/* Native range input for accessibility */}
+                                          <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            step="1"
+                                            value={scenarioSliderValue}
+                                            onChange={(e) => setScenarioSliderValue(Number(e.target.value))}
+                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-30"
+                                            style={{ 
+                                              WebkitAppearance: 'none', 
+                                              appearance: 'none',
+                                              background: 'transparent'
+                                            }}
+                                          />
+                                          
+                                          {/* Visual handle - Fixed positioning */}
+                                          <motion.div
+                                            animate={{
+                                              left: `${scenarioSliderValue}%`,
+                                            }}
+                                            whileHover={{ scale: 1.1 }}
+                                            transition={{
+                                              left: { 
+                                                type: "spring", 
+                                                stiffness: 300, 
+                                                damping: 25,
+                                                mass: 0.5
+                                              },
+                                              scale: { duration: 0.15, ease: "easeOut" }
+                                            }}
+                                            style={{
+                                              transform: 'translateX(-50%)'
+                                            }}
+                                            className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white dark:bg-gray-800 border-2 border-blue-500 dark:border-blue-400 shadow-lg z-20 pointer-events-none"
+                                          >
+                                            <motion.div
+                                              className="absolute inset-0 rounded-full bg-gradient-to-br from-blue-500/20 to-indigo-500/20"
+                                              animate={{ rotate: 360 }}
+                                              transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+                                            />
+                                          </motion.div>
+                                          
+                                          {/* Active track fill */}
+                                          <motion.div
+                                            animate={{ width: `${scenarioSliderValue}%` }}
+                                            transition={{ 
+                                              type: "spring", 
+                                              stiffness: 300, 
+                                              damping: 25,
+                                              mass: 0.5
+                                            }}
+                                            className={cn(
+                                              "absolute left-0 top-0 h-full rounded-full z-10",
+                                              scenarioSliderValue < 25 ? "bg-gradient-to-r from-red-500/50 to-red-500/30" :
+                                              scenarioSliderValue < 75 ? "bg-gradient-to-r from-red-500/30 via-blue-500/50 to-blue-500/30" :
+                                              "bg-gradient-to-r from-red-500/30 via-blue-500/30 to-emerald-500/50"
+                                            )}
+                                          />
+                                        </div>
+                                        
+                                        {/* Fixed markers */}
+                                        <div className="absolute inset-0 flex items-center justify-between px-0.5">
+                                          {[0, 50, 100].map((pos) => (
+                                            <div
+                                              key={pos}
+                                              className={cn(
+                                                "w-1.5 h-1.5 rounded-full",
+                                                pos === 0 ? "bg-red-500 dark:bg-red-400" :
+                                                pos === 50 ? "bg-blue-500 dark:bg-blue-400" :
+                                                "bg-emerald-500 dark:bg-emerald-400"
+                                              )}
+                                            />
+                                          ))}
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Compact value labels */}
+                                      <div className="flex justify-between mt-2 text-[9px] text-finsim-textMuted dark:text-finsim-dark-textMuted">
+                                        <span>{worstFinal >= 0 ? "+" : ""}{worstFinal.toFixed(0)}€</span>
+                                        <span>{realisticFinal >= 0 ? "+" : ""}{realisticFinal.toFixed(0)}€</span>
+                                        <span>{bestFinal >= 0 ? "+" : ""}{bestFinal.toFixed(0)}€</span>
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Compact scenario info */}
+                                    <motion.div
+                                      key={Math.round(scenarioSliderValue)}
+                                      initial={{ opacity: 0 }}
+                                      animate={{ opacity: 1 }}
+                                      transition={{ duration: 0.2 }}
+                                      className={cn(
+                                        "p-2.5 rounded-lg border text-center",
+                                        scenarioSliderValue < 25 ? "bg-red-500/10 border-red-500/20" :
+                                        scenarioSliderValue < 75 ? "bg-blue-500/10 border-blue-500/20" :
+                                        "bg-emerald-500/10 border-emerald-500/20"
+                                      )}
+                                    >
+                                      <div className="flex items-center justify-center gap-2">
+                                        <p className={cn(
+                                          "text-xs font-semibold",
+                                          scenarioSliderValue < 25 ? "text-red-600 dark:text-red-400" :
+                                          scenarioSliderValue < 75 ? "text-blue-600 dark:text-blue-400" :
+                                          "text-emerald-600 dark:text-emerald-400"
+                                        )}>
+                                          {getScenarioLabel(scenarioSliderValue)}
+                                        </p>
+                                        {scenarioSliderValue !== 50 && (
+                                          <span className={cn(
+                                            "text-[10px] font-medium",
+                                            difference >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+                                          )}>
+                                            {difference >= 0 ? "+" : ""}{difference.toFixed(0)}€
+                                          </span>
+                                        )}
+                                      </div>
+                                    </motion.div>
+                                  </div>
+                                </motion.div>
+                              )
+                            })()}
+                          </div>
+                        )
+                      })()}
+
+                      {/* AI Analysis Text - Enhanced Formatting */}
+                      <div className="space-y-3 pt-2">
                         {(() => {
-                          // Просто разбиваем на абзацы по двойным переносам строк
+                          // Split by double newlines first
                           const paragraphs = plausibilityText.split(/\n\n+/).filter(p => p.trim().length > 0)
                           
                           return paragraphs.map((paragraph, paraIdx) => {
+                            const trimmed = paragraph.trim()
+                            
+                            // Check if it's a numbered list item (1. 2. 3. or 1) 2) 3))
+                            const numberedMatch = trimmed.match(/^(\d+)[\.\)]\s+(.+)/)
+                            if (numberedMatch) {
+                              return (
+                                <motion.div
+                                  key={paraIdx}
+                                  initial={{ opacity: 0, x: -10 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ delay: paraIdx * 0.08 }}
+                                  className="flex items-start gap-3 p-3 rounded-lg bg-white/40 dark:bg-white/5 border border-finsim-borderLight/30 dark:border-finsim-dark-borderLight/30 hover:bg-white/60 dark:hover:bg-white/10 transition-colors"
+                                >
+                                  <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/20 dark:bg-blue-500/30 flex items-center justify-center">
+                                    <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
+                                      {numberedMatch[1]}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm leading-relaxed text-finsim-textMain dark:text-finsim-dark-textMain flex-1">
+                                    {numberedMatch[2].split(/(\d+[€%]?|\d+\.\d+[€%]?)/g).map((part, partIdx) => {
+                                      if (/^\d+[€%]?$/.test(part) || /^\d+\.\d+[€%]?$/.test(part)) {
+                                        return (
+                                          <span key={partIdx} className="font-semibold text-finsim-primary dark:text-finsim-dark-primary">
+                                            {part}
+                                          </span>
+                                        )
+                                      }
+                                      return part
+                                    })}
+                                  </p>
+                                </motion.div>
+                              )
+                            }
+                            
+                            // Check if it's a bullet point (- • * ▸)
+                            if (/^[-•*▸]\s/.test(trimmed)) {
+                              const content = trimmed.replace(/^[-•*▸]\s+/, '')
+                              return (
+                                <motion.div
+                                  key={paraIdx}
+                                  initial={{ opacity: 0, x: -10 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ delay: paraIdx * 0.08 }}
+                                  className="flex items-start gap-3 p-3 rounded-lg bg-white/40 dark:bg-white/5 border border-finsim-borderLight/30 dark:border-finsim-dark-borderLight/30 hover:bg-white/60 dark:hover:bg-white/10 transition-colors"
+                                >
+                                  <motion.div
+                                    animate={{ scale: [1, 1.12, 1] }}
+                                    transition={{ 
+                                      duration: 2, 
+                                      repeat: Infinity,
+                                      delay: paraIdx * 0.1,
+                                      ease: "easeInOut",
+                                      times: [0, 0.5, 1]
+                                    }}
+                                    className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400 mt-2"
+                                  />
+                                  <p className="text-sm leading-relaxed text-finsim-textMain dark:text-finsim-dark-textMain flex-1">
+                                    {content.split(/(\d+[€%]?|\d+\.\d+[€%]?)/g).map((part, partIdx) => {
+                                      if (/^\d+[€%]?$/.test(part) || /^\d+\.\d+[€%]?$/.test(part)) {
+                                        return (
+                                          <span key={partIdx} className="font-semibold text-finsim-primary dark:text-finsim-dark-primary">
+                                            {part}
+                                          </span>
+                                        )
+                                      }
+                                      return part
+                                    })}
+                                  </p>
+                                </motion.div>
+                              )
+                            }
+                            
+                            // Check if it's a heading (ends with : or is short and uppercase)
+                            const isHeading = trimmed.endsWith(':') || (trimmed.length < 100 && /^[A-ZА-ЯЁ]/.test(trimmed) && !trimmed.includes('.') && trimmed.split(' ').length <= 8)
+                            if (isHeading) {
+                              return (
+                                <motion.h5
+                                  key={paraIdx}
+                                  initial={{ opacity: 0, y: 5 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  transition={{ delay: paraIdx * 0.08 }}
+                                  className="text-sm font-semibold text-finsim-textMain dark:text-white mb-2 mt-4 first:mt-0"
+                                >
+                                  {trimmed.replace(/:$/, '')}
+                                </motion.h5>
+                              )
+                            }
+                            
+                            // Regular paragraph
                             return (
                               <motion.div
                                 key={paraIdx}
                                 initial={{ opacity: 0, y: 5 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: paraIdx * 0.1 }}
-                                className="mb-4 last:mb-0"
+                                transition={{ delay: paraIdx * 0.08 }}
+                                className="p-4 rounded-lg bg-white/40 dark:bg-white/5 border border-finsim-borderLight/30 dark:border-finsim-dark-borderLight/30"
                               >
-                                <p className="text-sm leading-7 text-finsim-textMain dark:text-finsim-dark-textMain">
-                                  {paragraph.split(/(\d+[€%]?|\d+\.\d+[€%]?)/g).map((part, partIdx) => {
-                                    // Подсвечиваем только числа и суммы
+                                <p className="text-sm leading-relaxed text-finsim-textMain dark:text-finsim-dark-textMain">
+                                  {trimmed.split(/(\d+[€%]?|\d+\.\d+[€%]?)/g).map((part, partIdx) => {
                                     if (/^\d+[€%]?$/.test(part) || /^\d+\.\d+[€%]?$/.test(part)) {
                                       return (
                                         <span key={partIdx} className="font-semibold text-finsim-primary dark:text-finsim-dark-primary">
@@ -1811,7 +2475,7 @@ export default function Home() {
                             )
                           })
                         })()}
-                  </div>
+                      </div>
                     </motion.div>
                   )}
 
@@ -1897,128 +2561,70 @@ export default function Home() {
                     </div>
                   )}
 
-                  {/* Szenario-Analyse */}
-                  {scenarioAnalysisText && (
-                    <div className="glass-effect premium-shadow rounded-[24px] p-6 sm:p-8 space-y-4 animate-fade-in-up">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-xl bg-gradient-to-br from-purple-500/10 to-pink-500/10 dark:from-purple-500/20 dark:to-pink-500/20">
-                          <TrendingUp className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                        </div>
-                        <div className="space-y-0.5 flex-1">
-                          <h4 className="text-base font-semibold text-finsim-textMain dark:text-finsim-dark-textMain tracking-tight">
-                            Szenario-Analyse
-                          </h4>
-                          <p className="text-xs text-finsim-textSecondary dark:text-finsim-dark-textSecondary">
-                            Kurze Bewertung der drei Finanzszenarien
-                          </p>
-                        </div>
-                      </div>
-                      <div className="space-y-4 pt-2">
-                        {formatLLMText(scenarioAnalysisText).map((item, idx) => {
-                          if (item.type === 'paragraph') {
-                            // Проверяем, начинается ли с названия сценария
-                            const isBestCase = /^BEST CASE/i.test(item.content)
-                            const isRealisticCase = /^REALISTIC CASE/i.test(item.content)
-                            const isWorstCase = /^WORST CASE/i.test(item.content)
-                            
-                            if (isBestCase || isRealisticCase || isWorstCase) {
-                              const parts = item.content.split(':')
-                              const title = parts[0]
-                              const description = parts.slice(1).join(':').trim()
-                              
-                              // Определяем цвет и иконку для каждого сценария
-                              let accentColor = 'text-blue-600 dark:text-blue-400'
-                              let bgColor = 'bg-blue-500/10 dark:bg-blue-500/20'
-                              let borderColor = 'border-blue-500/20 dark:border-blue-500/30'
-                              let cardBg = 'bg-blue-50/50 dark:bg-blue-950/20'
-                              let Icon = TrendingUp
-                              
-                              if (isBestCase) {
-                                accentColor = 'text-emerald-600 dark:text-emerald-400'
-                                bgColor = 'bg-emerald-500/10 dark:bg-emerald-500/20'
-                                borderColor = 'border-emerald-500/20 dark:border-emerald-500/30'
-                                cardBg = 'bg-emerald-50/50 dark:bg-emerald-950/20'
-                                Icon = ArrowUp
-                              } else if (isRealisticCase) {
-                                accentColor = 'text-blue-600 dark:text-blue-400'
-                                bgColor = 'bg-blue-500/10 dark:bg-blue-500/20'
-                                borderColor = 'border-blue-500/20 dark:border-blue-500/30'
-                                cardBg = 'bg-blue-50/50 dark:bg-blue-950/20'
-                                Icon = Minus
-                              } else if (isWorstCase) {
-                                accentColor = 'text-red-600 dark:text-red-400'
-                                bgColor = 'bg-red-500/10 dark:bg-red-500/20'
-                                borderColor = 'border-red-500/20 dark:border-red-500/30'
-                                cardBg = 'bg-red-50/50 dark:bg-red-950/20'
-                                Icon = ArrowDown
-                              }
-                              
-                              return (
-                                <motion.div 
-                                  key={idx} 
-                                  initial={{ opacity: 0, x: -10 }}
-                                  animate={{ opacity: 1, x: 0 }}
-                                  transition={{ delay: idx * 0.1 }}
-                                  className={`p-4 rounded-xl ${cardBg} border ${borderColor} relative overflow-hidden`}
-                                >
-                                  {/* Цветная полоска слева */}
-                                  <div className={`absolute left-0 top-0 bottom-0 w-1 ${
-                                    isBestCase ? 'bg-emerald-500/40 dark:bg-emerald-500/50' :
-                                    isRealisticCase ? 'bg-blue-500/40 dark:bg-blue-500/50' :
-                                    'bg-red-500/40 dark:bg-red-500/50'
-                                  }`} />
-                                  
-                                  <div className="flex items-start gap-3 pl-2">
-                                    <div className={`p-2 rounded-lg ${bgColor} flex-shrink-0`}>
-                                      <Icon className={`h-4 w-4 ${accentColor}`} />
-                                    </div>
-                                    <div className="flex-1 space-y-2">
-                                      <h5 className={`text-sm font-semibold ${accentColor}`}>
-                                        {title}
-                                      </h5>
-                                      {description && (
-                                        <p className="text-sm leading-relaxed text-finsim-textSecondary dark:text-finsim-dark-textSecondary">
-                                          {description}
-                                        </p>
-                                      )}
-                                    </div>
-                                  </div>
-                                </motion.div>
-                              )
-                            }
-                          }
-                          return (
-                            <p key={idx} className="text-sm leading-relaxed text-finsim-textMain dark:text-finsim-dark-textMain">
-                              {item.content}
-                            </p>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Zusammenfassung/Итоги */}
+                  {/* Zusammenfassung - Apple/OpenAI Style */}
                   {summaryText && (
-                    <div className="glass-effect premium-shadow rounded-[24px] p-6 sm:p-8 space-y-4 animate-fade-in-up">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-xl bg-gradient-to-br from-amber-500/10 to-orange-500/10 dark:from-amber-500/20 dark:to-orange-500/20">
-                          <FileText className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+                      className="glass-effect premium-shadow rounded-2xl p-4 sm:p-5 animate-fade-in-up"
+                    >
+                      {/* Minimalist Header */}
+                      <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-finsim-borderLight/30 dark:border-finsim-dark-borderLight/30">
+                        <div className="p-1.5 rounded-lg bg-amber-500/10 dark:bg-amber-500/20">
+                          <FileText className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
                         </div>
-                        <div className="space-y-0.5 flex-1">
-                          <h4 className="text-base font-semibold text-finsim-textMain dark:text-finsim-dark-textMain tracking-tight">
+                        <div>
+                          <h4 className="text-sm font-semibold text-finsim-textMain dark:text-white tracking-tight">
                             Zusammenfassung
                           </h4>
-                          <p className="text-xs text-finsim-textSecondary dark:text-finsim-dark-textSecondary">
-                            Wichtigste Erkenntnisse und nächste Schritte
-                          </p>
                         </div>
                       </div>
-                      <div className="pt-2">
-                        <p className="text-sm leading-relaxed text-finsim-textMain dark:text-finsim-dark-textMain">
-                          {summaryText}
-                        </p>
+                      
+                      {/* Clean Content */}
+                      <div className="space-y-3">
+                        {(() => {
+                          // Split by sentences or paragraphs for better readability
+                          const sentences = summaryText.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0)
+                          
+                          // Group into logical paragraphs (max 2-3 sentences per paragraph)
+                          const paragraphs: string[] = []
+                          let currentParagraph = ""
+                          
+                          sentences.forEach((sentence, idx) => {
+                            currentParagraph += (currentParagraph ? " " : "") + sentence.trim()
+                            // Create new paragraph every 2-3 sentences or if sentence is very long
+                            if ((idx + 1) % 2 === 0 || sentence.length > 150 || idx === sentences.length - 1) {
+                              if (currentParagraph.trim()) {
+                                paragraphs.push(currentParagraph.trim())
+                                currentParagraph = ""
+                              }
+                            }
+                          })
+                          
+                          return paragraphs.map((paragraph, paraIdx) => (
+                            <motion.p
+                              key={paraIdx}
+                              initial={{ opacity: 0, y: 5 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: paraIdx * 0.1, duration: 0.3 }}
+                              className="text-sm leading-relaxed text-finsim-textMain dark:text-finsim-dark-textMain"
+                            >
+                              {paragraph.split(/(\d+[€%]?|\d+\.\d+[€%]?)/g).map((part, partIdx) => {
+                                if (/^\d+[€%]?$/.test(part) || /^\d+\.\d+[€%]?$/.test(part)) {
+                                  return (
+                                    <span key={partIdx} className="font-semibold text-finsim-primary dark:text-finsim-dark-primary">
+                                      {part}
+                                    </span>
+                                  )
+                                }
+                                return part
+                              })}
+                            </motion.p>
+                          ))
+                        })()}
                       </div>
-                    </div>
+                    </motion.div>
                   )}
                 </section>
               )}
@@ -2465,7 +3071,7 @@ export default function Home() {
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: result.length * 0.08 }}
                           className="mb-5"
-                        >
+          >
                           <p className="text-sm leading-7 text-finsim-textMain dark:text-finsim-dark-textMain">
                             {currentParagraph.join(' ').split(/(\d+[€%]?|\d+\.\d+[€%]?)/g).map((part, partIdx) => {
                               if (/^\d+[€%]?$/.test(part) || /^\d+\.\d+[€%]?$/.test(part)) {

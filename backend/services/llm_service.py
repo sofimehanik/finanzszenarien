@@ -353,8 +353,9 @@ Szenario-Überblick:
 - Größte Ausgabenfelder: {category_breakdown}
 
 Schreibe GENAU zwei Absätze (je 3-4 Sätze, gesamt 90-120 Wörter):
-Absatz 1: Welches Szenario ist am plausibelsten und warum? Verknüpfe es direkt mit dem Ziel.
-Absatz 2: Welche Risiken/Chancen folgen daraus? Maximal 1-2 Emojis innerhalb des Textes, keine Bulletpoints."""
+Im ersten Absatz erkläre, welches Szenario am plausibelsten ist und warum. Verknüpfe es direkt mit dem Ziel.
+Im zweiten Absatz beschreibe, welche Risiken und Chancen daraus folgen.
+WICHTIG: Schreibe den Text direkt als Fließtext ohne Überschriften, ohne "Absatz 1" oder "Absatz 2", ohne Nummerierung. Maximal 1-2 Emojis innerhalb des Textes, keine Bulletpoints. Beginne einfach mit dem Inhalt."""
     
     def _build_tips_prompt(self, finance_data: ParsedFinanceData, 
                           user_goal: Optional[str] = None,
@@ -583,10 +584,11 @@ Finanzkontext:
 
 Anweisungen:
 - Maximal 2 Absätze, jeweils 3 Sätze (insgesamt < 140 Wörter)
-- Absatz 1: Wirkung und Relevanz des Tipps im Kontext des Ziels
-- Absatz 2: 2-3 konkrete Umsetzungsschritte (Zahlen nennen, falls sinnvoll)
+- Im ersten Absatz: Erkläre die Wirkung und Relevanz des Tipps im Kontext des Ziels
+- Im zweiten Absatz: Beschreibe 2-3 konkrete Umsetzungsschritte (Zahlen nennen, falls sinnvoll)
 - Höchstens 2 Emojis innerhalb des Textes (⚠️, 💡, ✅, 🎯)
-- Keine Bulletpoints, keine Überschriften."""
+- Keine Bulletpoints, keine Überschriften.
+WICHTIG: Schreibe den Text direkt als Fließtext ohne Überschriften, ohne "Absatz 1" oder "Absatz 2", ohne Nummerierung. Beginne einfach mit dem Inhalt."""
         
         try:
             if self.provider == 'openai':

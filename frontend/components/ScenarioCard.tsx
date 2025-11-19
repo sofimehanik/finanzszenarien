@@ -1,9 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Sparkles } from "lucide-react"
+import { TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Sparkles, AlertCircle, Lightbulb } from "lucide-react"
 import { Scenario } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { motion } from "framer-motion"
 
 interface ScenarioCardProps {
   scenario: Scenario
@@ -11,223 +12,201 @@ interface ScenarioCardProps {
 }
 
 export function ScenarioCard({ scenario, type }: ScenarioCardProps) {
-  const [expandedRisks, setExpandedRisks] = useState(false)
-  const [expandedOpportunities, setExpandedOpportunities] = useState(false)
   const [expandedKIAnalysis, setExpandedKIAnalysis] = useState(false)
-  const getIcon = () => {
+
+  const getConfig = () => {
     switch (type) {
       case "best_case":
-        return (
-          <div className="p-2.5 rounded-2xl bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-500/20 dark:border-emerald-400/30 shadow-sm group-hover:shadow-md group-hover:bg-emerald-500/15 dark:group-hover:bg-emerald-500/25 transition-all duration-300">
-            <TrendingUp className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-          </div>
-        )
+        return {
+          icon: TrendingUp,
+          iconColor: "text-emerald-500 dark:text-emerald-400",
+          bgColor: "bg-emerald-500/8 dark:bg-emerald-500/12",
+          borderColor: "border-emerald-500/20 dark:border-emerald-400/25",
+          valueColor: "text-emerald-600 dark:text-emerald-400",
+          accentColor: "from-emerald-500/15 to-emerald-500/5",
+          label: "Optimistisch"
+        }
       case "worst_case":
-        return (
-          <div className="p-2.5 rounded-2xl bg-red-500/10 dark:bg-red-500/20 border border-red-500/20 dark:border-red-400/30 shadow-sm group-hover:shadow-md group-hover:bg-red-500/15 dark:group-hover:bg-red-500/25 transition-all duration-300">
-            <TrendingDown className="h-4 w-4 text-red-600 dark:text-red-400" />
-          </div>
-        )
+        return {
+          icon: TrendingDown,
+          iconColor: "text-red-500 dark:text-red-400",
+          bgColor: "bg-red-500/8 dark:bg-red-500/12",
+          borderColor: "border-red-500/20 dark:border-red-400/25",
+          valueColor: "text-red-600 dark:text-red-400",
+          accentColor: "from-red-500/15 to-red-500/5",
+          label: "Konservativ"
+        }
       default:
-        return (
-          <div className="p-2.5 rounded-2xl bg-blue-500/10 dark:bg-blue-500/20 border border-blue-500/20 dark:border-blue-400/30 shadow-sm group-hover:shadow-md group-hover:bg-blue-500/15 dark:group-hover:bg-blue-500/25 transition-all duration-300">
-            <Minus className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-          </div>
-        )
+        return {
+          icon: Minus,
+          iconColor: "text-blue-500 dark:text-blue-400",
+          bgColor: "bg-blue-500/8 dark:bg-blue-500/12",
+          borderColor: "border-blue-500/20 dark:border-blue-400/25",
+          valueColor: "text-blue-600 dark:text-blue-400",
+          accentColor: "from-blue-500/15 to-blue-500/5",
+          label: "Realistisch"
+        }
     }
   }
 
-  const getValueColor = () => {
-    switch (type) {
-      case "best_case":
-        return "text-emerald-600 dark:text-emerald-400"
-      case "worst_case":
-        return "text-red-600 dark:text-red-400"
-      default:
-        return "text-blue-600 dark:text-blue-400"
-    }
-  }
+  const config = getConfig()
+  const Icon = config.icon
 
   return (
-    <div 
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
       className={cn(
-        "group relative h-full rounded-[24px] glass-effect premium-shadow overflow-hidden",
-        "hover:shadow-2xl dark:hover:shadow-2xl hover:-translate-y-1 transition-all duration-300",
-        "min-h-[360px] md:min-h-[420px]",
-        // Color-specific hover effects
-        type === "best_case" && "hover:shadow-emerald-500/10 dark:hover:shadow-emerald-400/20",
-        type === "worst_case" && "hover:shadow-red-500/10 dark:hover:shadow-red-400/20",
-        type === "realistic_case" && "hover:shadow-blue-500/10 dark:hover:shadow-blue-400/20"
+        "group relative h-full rounded-2xl glass-effect premium-shadow overflow-hidden",
+        "hover:shadow-xl dark:hover:shadow-xl transition-all duration-300",
+        "border border-finsim-borderLight dark:border-finsim-dark-borderLight"
       )}
     >
-      {/* Modern accent line - цветная линия слева */}
+      {/* Subtle accent gradient */}
       <div className={cn(
-        "absolute left-0 top-0 bottom-0 w-1 transition-all duration-300",
-        type === "best_case" && "bg-gradient-to-b from-emerald-400 via-emerald-500 to-emerald-600",
-        type === "worst_case" && "bg-gradient-to-b from-red-400 via-red-500 to-red-600",
-        type === "realistic_case" && "bg-gradient-to-b from-blue-400 via-blue-500 to-blue-600"
+        "absolute inset-0 bg-gradient-to-br opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none",
+        config.accentColor
       )} />
-      
-      {/* Анимированный градиентный фон внутри карточки */}
-      <div 
-        className={cn(
-          "absolute inset-0 pointer-events-none rounded-[24px] z-[1]",
-          type === "best_case" && "bg-gradient-to-br from-emerald-500/10 via-emerald-500/7 to-emerald-500/4 dark:from-emerald-500/15 dark:via-emerald-500/10 dark:to-emerald-500/6",
-          type === "worst_case" && "bg-gradient-to-br from-red-500/10 via-red-500/7 to-red-500/4 dark:from-red-500/15 dark:via-red-500/10 dark:to-red-500/6",
-          type === "realistic_case" && "bg-gradient-to-br from-blue-500/10 via-blue-500/7 to-blue-500/4 dark:from-blue-500/15 dark:via-blue-500/10 dark:to-blue-500/6"
-        )}
-        style={{
-          animation: 'gradient-pulse 4s ease-in-out infinite'
-        }}
-      />
-      
-      {/* Полупрозрачный цветной градиентный фон при наведении */}
-      <div className={cn(
-        "absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 ease-out pointer-events-none rounded-[24px]",
-        type === "best_case" && "bg-gradient-to-br from-emerald-500/18 via-emerald-500/12 to-emerald-500/8 dark:from-emerald-500/25 dark:via-emerald-500/18 dark:to-emerald-500/12",
-        type === "worst_case" && "bg-gradient-to-br from-red-500/18 via-red-500/12 to-red-500/8 dark:from-red-500/25 dark:via-red-500/18 dark:to-red-500/12",
-        type === "realistic_case" && "bg-gradient-to-br from-blue-500/18 via-blue-500/12 to-blue-500/8 dark:from-blue-500/25 dark:via-blue-500/18 dark:to-blue-500/12"
-      )} />
-      
-      {/* Subtle color glow on hover - ненавязчивая подсветка слева */}
-      <div className={cn(
-        "absolute left-0 top-0 bottom-0 w-0 opacity-0 group-hover:w-1 group-hover:opacity-100 transition-all duration-500 pointer-events-none rounded-l-[24px]",
-        type === "best_case" && "bg-gradient-to-b from-emerald-500/30 via-emerald-500/20 to-emerald-500/30",
-        type === "worst_case" && "bg-gradient-to-b from-red-500/30 via-red-500/20 to-red-500/30",
-        type === "realistic_case" && "bg-gradient-to-b from-blue-500/30 via-blue-500/20 to-blue-500/30"
-      )} />
-      
-      {/* Additional subtle glow on hover - общая подсветка */}
-      <div className={cn(
-        "absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-[24px]",
-        type === "best_case" && "bg-gradient-to-r from-emerald-500/3 via-transparent to-transparent",
-        type === "worst_case" && "bg-gradient-to-r from-red-500/3 via-transparent to-transparent",
-        type === "realistic_case" && "bg-gradient-to-r from-blue-500/3 via-transparent to-transparent"
-      )} />
-      
-      <div className="relative p-6 md:p-7 space-y-5 pl-7 md:pl-8 flex flex-col h-full z-10">
-        {/* Header */}
-        <div className="space-y-2.5">
-          <div className="flex items-center gap-2.5">
-            {getIcon()}
-            <h3 className="text-base font-semibold text-finsim-textMain dark:text-finsim-dark-textMain tracking-tight">{scenario.title}</h3>
+
+      <div className="relative p-6 flex flex-col h-full z-10">
+        {/* Header Section */}
+        <div className="space-y-3 mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "p-2 rounded-xl",
+                config.bgColor,
+                config.borderColor,
+                "border"
+              )}>
+                <Icon className={cn("h-4 w-4", config.iconColor)} />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-finsim-textMain dark:text-white tracking-tight">
+                  {scenario.title}
+                </h3>
+                <p className="text-[10px] uppercase tracking-wider text-finsim-textMuted dark:text-finsim-dark-textMuted mt-0.5">
+                  {config.label}
+                </p>
+              </div>
+            </div>
           </div>
-          <p className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-relaxed pr-1">{scenario.description}</p>
+          <p className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-relaxed">
+            {scenario.description}
+          </p>
         </div>
 
-        {/* Financial Metrics */}
-        <div className="grid grid-cols-2 gap-4 pb-4 border-b border-finsim-borderLight dark:border-finsim-dark-borderLight">
-          <div className="space-y-1.5">
-            <p className="text-xs font-semibold text-finsim-textSecondary dark:text-finsim-dark-textSecondary uppercase tracking-wider">Monatlich</p>
-            <p className={cn("text-lg font-bold font-mono tracking-tight", getValueColor())}>
-              {scenario.monthly_savings >= 0 ? "+" : ""}
-              {scenario.monthly_savings.toFixed(2)} €
-            </p>
-          </div>
-          <div className="space-y-1.5">
-            <p className="text-xs font-semibold text-finsim-textSecondary dark:text-finsim-dark-textSecondary uppercase tracking-wider">12 Monate</p>
-            <p className={cn("text-lg font-bold font-mono tracking-tight", getValueColor())}>
-              {scenario.final_balance >= 0 ? "+" : ""}
-              {scenario.final_balance.toFixed(2)} €
-            </p>
+        {/* Financial Metrics - Prominent Display */}
+        <div className="space-y-4 mb-6 pb-6 border-b border-finsim-borderLight dark:border-finsim-dark-borderLight">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <p className="text-[10px] uppercase tracking-wider text-finsim-textMuted dark:text-finsim-dark-textMuted font-medium">
+                Monatlich
+              </p>
+              <p className={cn(
+                "text-2xl font-bold font-mono tracking-tight",
+                config.valueColor
+              )}>
+                {scenario.monthly_savings >= 0 ? "+" : ""}
+                {scenario.monthly_savings.toFixed(2)} €
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] uppercase tracking-wider text-finsim-textMuted dark:text-finsim-dark-textMuted font-medium">
+                12 Monate
+              </p>
+              <p className={cn(
+                "text-2xl font-bold font-mono tracking-tight",
+                config.valueColor
+              )}>
+                {scenario.final_balance >= 0 ? "+" : ""}
+                {scenario.final_balance.toFixed(2)} €
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* AI Summary - Collapsible */}
+        {/* AI Analysis Section */}
         {scenario.ai_summary && (
-          <div className="space-y-2.5">
+          <div className="space-y-3 mb-6">
             <button
               onClick={() => setExpandedKIAnalysis(!expandedKIAnalysis)}
-              className="w-full flex items-center justify-between gap-2 group hover:opacity-80 transition-opacity py-1"
+              className="w-full flex items-center justify-between gap-2 group py-1.5 -mx-1 px-1 rounded-lg hover:bg-white/40 dark:hover:bg-white/5 transition-colors"
             >
               <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-finsim-primary dark:text-finsim-dark-primary flex-shrink-0" />
-                <p className="text-xs font-semibold text-finsim-textSecondary dark:text-finsim-dark-textSecondary uppercase tracking-wider">KI-Analyse</p>
+                <Sparkles className="h-3.5 w-3.5 text-finsim-primary dark:text-finsim-dark-primary flex-shrink-0" />
+                <p className="text-xs font-semibold text-finsim-textMain dark:text-white uppercase tracking-wider">
+                  KI-Analyse
+                </p>
               </div>
               {expandedKIAnalysis ? (
-                <ChevronUp className="h-4 w-4 text-finsim-textSecondary dark:text-finsim-dark-textSecondary group-hover:text-finsim-primary dark:group-hover:text-finsim-dark-primary transition-colors flex-shrink-0" />
+                <ChevronUp className="h-3.5 w-3.5 text-finsim-textMuted dark:text-finsim-dark-textMuted group-hover:text-finsim-primary dark:group-hover:text-finsim-dark-primary transition-colors flex-shrink-0" />
               ) : (
-                <ChevronDown className="h-4 w-4 text-finsim-textSecondary dark:text-finsim-dark-textSecondary group-hover:text-finsim-primary dark:group-hover:text-finsim-dark-primary transition-colors flex-shrink-0" />
+                <ChevronDown className="h-3.5 w-3.5 text-finsim-textMuted dark:text-finsim-dark-textMuted group-hover:text-finsim-primary dark:group-hover:text-finsim-dark-primary transition-colors flex-shrink-0" />
               )}
             </button>
             {expandedKIAnalysis && (
-              <div className="animate-in fade-in-0 slide-in-from-top-2 duration-300 pt-1">
-                <p className="text-sm text-finsim-textMain dark:text-finsim-dark-textMain leading-relaxed pr-1">{scenario.ai_summary}</p>
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2 }}
+                className="pt-2"
+              >
+                <p className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-relaxed">
+                  {scenario.ai_summary}
+                </p>
+              </motion.div>
+            )}
+          </div>
+        )}
+
+        {/* Risk Factors & Opportunities - Clean List */}
+        <div className="space-y-4 flex-1">
+          {scenario.risk_factors.length > 0 && (
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-3.5 w-3.5 text-red-500 dark:text-red-400 flex-shrink-0" />
+                <p className="text-xs font-semibold text-red-500 dark:text-red-400 uppercase tracking-wider">
+                  Risikofaktoren
+                </p>
               </div>
-              )}
-          </div>
-        )}
+              <ul className="space-y-2">
+                {scenario.risk_factors.map((risk, idx) => (
+                  <li key={idx} className="flex items-start gap-2.5">
+                    <span className="text-red-500 dark:text-red-400 mt-1 text-xs flex-shrink-0">▸</span>
+                    <span className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-relaxed flex-1">
+                      {risk}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
-        {/* Risk Factors - Compact */}
-        {scenario.risk_factors.length > 0 && (
-          <div className="space-y-2.5">
-            <p className="text-xs font-semibold text-red-500 dark:text-red-400 uppercase tracking-wider">Risikofaktoren</p>
-            <ul className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary space-y-2 leading-relaxed">
-              {(expandedRisks ? scenario.risk_factors : scenario.risk_factors.slice(0, 4)).map((risk, idx) => (
-                <li key={idx} className="flex items-start gap-2.5">
-                  <span className="text-red-500 dark:text-red-400 mt-1 text-xs flex-shrink-0">▸</span>
-                  <span className="flex-1 pr-1">{risk}</span>
-                </li>
-              ))}
-              {scenario.risk_factors.length > 4 && (
-                <li className="mt-2.5 pt-2.5 border-t border-finsim-borderLight dark:border-finsim-dark-borderLight">
-                  <button
-                    onClick={() => setExpandedRisks(!expandedRisks)}
-                    className="flex items-center gap-1.5 text-xs font-semibold text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 transition-colors w-full text-left"
-                  >
-                    {expandedRisks ? (
-                      <>
-                        <ChevronUp className="h-3.5 w-3.5" />
-                        <span>Weniger anzeigen</span>
-                      </>
-                    ) : (
-                      <>
-                        <ChevronDown className="h-3.5 w-3.5" />
-                        <span>+{scenario.risk_factors.length - 4} weitere anzeigen</span>
-                      </>
-                    )}
-                  </button>
-                </li>
-              )}
-            </ul>
-          </div>
-        )}
-
-        {/* Opportunities - Compact */}
-        {scenario.opportunities.length > 0 && (
-          <div className="space-y-2.5">
-            <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Chancen</p>
-            <ul className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary space-y-2 leading-relaxed">
-              {(expandedOpportunities ? scenario.opportunities : scenario.opportunities.slice(0, 4)).map((opp, idx) => (
-                <li key={idx} className="flex items-start gap-2.5">
-                  <span className="text-emerald-600 dark:text-emerald-400 mt-1 text-xs flex-shrink-0">▸</span>
-                  <span className="flex-1 pr-1">{opp}</span>
-                </li>
-              ))}
-              {scenario.opportunities.length > 4 && (
-                <li className="mt-2.5 pt-2.5 border-t border-finsim-borderLight dark:border-finsim-dark-borderLight">
-                  <button
-                    onClick={() => setExpandedOpportunities(!expandedOpportunities)}
-                    className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors w-full text-left"
-                  >
-                    {expandedOpportunities ? (
-                      <>
-                        <ChevronUp className="h-3.5 w-3.5" />
-                        <span>Weniger anzeigen</span>
-                      </>
-                    ) : (
-                      <>
-                        <ChevronDown className="h-3.5 w-3.5" />
-                        <span>+{scenario.opportunities.length - 4} weitere anzeigen</span>
-                      </>
-                    )}
-                  </button>
-                </li>
-              )}
-            </ul>
-          </div>
-        )}
+          {scenario.opportunities.length > 0 && (
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-2">
+                <Lightbulb className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400 flex-shrink-0" />
+                <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                  Chancen
+                </p>
+              </div>
+              <ul className="space-y-2">
+                {scenario.opportunities.map((opp, idx) => (
+                  <li key={idx} className="flex items-start gap-2.5">
+                    <span className="text-emerald-600 dark:text-emerald-400 mt-1 text-xs flex-shrink-0">▸</span>
+                    <span className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-relaxed flex-1">
+                      {opp}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </motion.div>
   )
 }

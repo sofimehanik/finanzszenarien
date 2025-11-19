@@ -3,11 +3,11 @@
 import { useState, useRef, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useAuth } from "@/contexts/AuthContext"
-import { uploadAvatar, updateUserProfile } from "@/lib/api"
+import { uploadAvatar, updateUserProfile, resetUserProfile } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { X, Upload, User, Save, Check, Sparkles, Edit2, Award } from "lucide-react"
+import { X, Upload, User, Save, Check, Sparkles, Edit2, Award, Trash2, AlertTriangle } from "lucide-react"
 
 interface ProfileSettingsProps {
   open: boolean
@@ -30,6 +30,8 @@ export function ProfileSettings({ open, onClose, onProfileSaved, onOpenQuiz }: P
   const { user, checkAuth } = useAuth()
   const [isUploading, setIsUploading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isResetting, setIsResetting] = useState(false)
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -137,6 +139,38 @@ export function ProfileSettings({ open, onClose, onProfileSaved, onOpenQuiz }: P
       setQuizValues(user.quiz_profile)
     } else {
       setQuizValues({})
+    }
+  }
+
+  const handleResetProfile = async () => {
+    setIsResetting(true)
+    setError("")
+    setSuccess("")
+    
+    try {
+      await resetUserProfile()
+      await checkAuth()
+      setSuccess("Profil erfolgreich zurückgesetzt")
+      setShowResetConfirm(false)
+      
+      // Reset local state
+      setFullName("")
+      setProfession("")
+      setAboutMe("")
+      setFinancialGoals("")
+      setQuizValues({})
+      
+      if (onProfileSaved) {
+        onProfileSaved()
+      }
+      
+      setTimeout(() => {
+        setSuccess("")
+      }, 2000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Fehler beim Zurücksetzen")
+    } finally {
+      setIsResetting(false)
     }
   }
 
@@ -455,12 +489,12 @@ export function ProfileSettings({ open, onClose, onProfileSaved, onOpenQuiz }: P
             </div>
 
             {/* Footer with Save Button */}
-            <div className="p-6 border-t border-finsim-borderLight dark:border-finsim-dark-borderLight bg-finsim-surfaceElevated dark:bg-finsim-dark-surfaceElevated">
+            <div className="p-6 border-t border-finsim-borderLight dark:border-finsim-dark-borderLight bg-finsim-surfaceElevated dark:bg-finsim-dark-surfaceElevated space-y-3">
               <motion.button
                 onClick={handleSaveProfile}
-                disabled={isSaving}
-                whileHover={{ scale: isSaving ? 1 : 1.01 }}
-                whileTap={{ scale: isSaving ? 1 : 0.99 }}
+                disabled={isSaving || isResetting}
+                whileHover={{ scale: isSaving || isResetting ? 1 : 1.01 }}
+                whileTap={{ scale: isSaving || isResetting ? 1 : 0.99 }}
                 className="w-full h-12 rounded-xl bg-finsim-primary dark:bg-finsim-dark-primary hover:bg-finsim-primaryHover dark:hover:bg-finsim-dark-primaryHover text-white font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {isSaving ? (
@@ -475,7 +509,97 @@ export function ProfileSettings({ open, onClose, onProfileSaved, onOpenQuiz }: P
                   </>
                 )}
               </motion.button>
+              
+              {/* Reset Button */}
+              <motion.button
+                onClick={() => setShowResetConfirm(true)}
+                disabled={isSaving || isResetting}
+                whileHover={{ scale: isSaving || isResetting ? 1 : 1.01 }}
+                whileTap={{ scale: isSaving || isResetting ? 1 : 0.99 }}
+                className="w-full h-11 rounded-xl bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 font-semibold shadow-sm hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>Profil zurücksetzen</span>
+              </motion.button>
             </div>
+            
+            {/* Reset Confirmation Modal */}
+            <AnimatePresence>
+              {showResetConfirm && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                  onClick={() => setShowResetConfirm(false)}
+                >
+                  <motion.div
+                    initial={{ opacity: 0, y: 20, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 20, scale: 0.98 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    className="relative w-full max-w-md rounded-2xl bg-finsim-surface dark:bg-finsim-dark-surface border border-finsim-border dark:border-finsim-dark-border shadow-2xl"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="p-6 space-y-4">
+                      <div className="flex items-start gap-4">
+                        <div className="p-3 rounded-xl bg-red-50 dark:bg-red-500/10">
+                          <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          <h3 className="text-lg font-bold text-finsim-textMain dark:text-white">
+                            Profil zurücksetzen?
+                          </h3>
+                          <p className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-relaxed">
+                            Alle deine Profildaten werden gelöscht:
+                          </p>
+                          <ul className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary space-y-1 list-disc list-inside">
+                            <li>Quiz-Profil und alle Antworten</li>
+                            <li>Persönliche Informationen</li>
+                            <li>Finanzziele</li>
+                            <li>Profilbild</li>
+                          </ul>
+                          <p className="text-xs text-finsim-textMuted dark:text-finsim-dark-textMuted pt-2">
+                            Dein Account, E-Mail und Passwort bleiben erhalten.
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-3 pt-2">
+                        <motion.button
+                          onClick={handleResetProfile}
+                          disabled={isResetting}
+                          whileHover={{ scale: isResetting ? 1 : 1.02 }}
+                          whileTap={{ scale: isResetting ? 1 : 0.98 }}
+                          className="flex-1 h-10 rounded-xl bg-red-600 dark:bg-red-500 hover:bg-red-700 dark:hover:bg-red-600 text-white font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                          {isResetting ? (
+                            <>
+                              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              <span>Wird zurückgesetzt...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Trash2 className="h-4 w-4" />
+                              <span>Zurücksetzen</span>
+                            </>
+                          )}
+                        </motion.button>
+                        <motion.button
+                          onClick={() => setShowResetConfirm(false)}
+                          disabled={isResetting}
+                          whileHover={{ scale: isResetting ? 1 : 1.02 }}
+                          whileTap={{ scale: isResetting ? 1 : 0.98 }}
+                          className="flex-1 h-10 rounded-xl bg-finsim-surfaceMuted dark:bg-finsim-dark-surfaceMuted hover:bg-finsim-surfaceElevated dark:hover:bg-finsim-dark-surfaceElevated text-finsim-textMain dark:text-finsim-dark-textMain font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Abbrechen
+                        </motion.button>
+                      </div>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         </motion.div>
       )}
