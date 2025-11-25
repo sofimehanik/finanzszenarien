@@ -689,7 +689,7 @@ export function ScenarioChart({
               strokeWidth={1}
             />
             {lineConfig
-              .filter(config => config.enabled && visibleChartData.some(d => d[config.key] !== undefined))
+              .filter(config => config.enabled && visibleChartData.some(d => (d as any)[config.key] !== undefined))
               .map((config) => (
                 <Line
                   key={config.key}
