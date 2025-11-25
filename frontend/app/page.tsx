@@ -2691,8 +2691,8 @@ export default function Home() {
                       month: p.month,
                       cumulative_balance: p.cumulative_balance
                     })),
-                    summary: analysis.ai_analysis?.summary || null,
-                    tips: analysis.ai_analysis?.tips || null,
+                    summary: analysis.ai_analysis?.summary || undefined,
+                    tips: analysis.ai_analysis?.tips || undefined,
                   }}
                   analysis={analysis}
                 />
