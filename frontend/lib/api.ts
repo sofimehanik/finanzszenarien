@@ -144,43 +144,81 @@ export interface SuggestedQuestions {
   questions: string[];
 }
 
+// Helper function to safely parse JSON response
+async function safeJsonParse(response: Response): Promise<any> {
+  const contentType = response.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    const text = await response.text();
+    throw new Error(`Expected JSON but got ${contentType}. Response: ${text.substring(0, 200)}`);
+  }
+  return response.json();
+}
+
 // Auth API functions
 export async function register(userData: UserRegister): Promise<TokenResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(userData),
-  });
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(userData),
+    });
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.detail || 'Registration failed');
+    if (!response.ok) {
+      try {
+        const errorData = await safeJsonParse(response);
+        throw new Error(errorData.detail || 'Registration failed');
+      } catch (parseError) {
+        if (parseError instanceof Error && parseError.message.includes('Expected JSON')) {
+          throw new Error(`Backend returned non-JSON response. Check if backend is running at ${API_BASE_URL}`);
+        }
+        throw parseError;
+      }
+    }
+
+    const data = await safeJsonParse(response);
+    setToken(data.access_token);
+    return data;
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(`Cannot connect to backend at ${API_BASE_URL}. Please check if the server is running.`);
+    }
+    throw error;
   }
-
-  const data = await response.json();
-  setToken(data.access_token);
-  return data;
 }
 
 export async function login(userData: UserLogin): Promise<TokenResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(userData),
-  });
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(userData),
+    });
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.detail || 'Login failed');
+    if (!response.ok) {
+      try {
+        const errorData = await safeJsonParse(response);
+        throw new Error(errorData.detail || 'Login failed');
+      } catch (parseError) {
+        if (parseError instanceof Error && parseError.message.includes('Expected JSON')) {
+          throw new Error(`Backend returned non-JSON response. Check if backend is running at ${API_BASE_URL}`);
+        }
+        throw parseError;
+      }
+    }
+
+    const data = await safeJsonParse(response);
+    setToken(data.access_token);
+    return data;
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(`Cannot connect to backend at ${API_BASE_URL}. Please check if the server is running.`);
+    }
+    throw error;
   }
-
-  const data = await response.json();
-  setToken(data.access_token);
-  return data;
 }
 
 export async function getCurrentUser(): Promise<UserInfo> {
@@ -203,11 +241,18 @@ export async function getCurrentUser(): Promise<UserInfo> {
         removeToken();
         throw new Error('Unauthorized');
       }
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || 'Failed to get user info');
+      try {
+        const errorData = await safeJsonParse(response);
+        throw new Error(errorData.detail || 'Failed to get user info');
+      } catch (parseError) {
+        if (parseError instanceof Error && parseError.message.includes('Expected JSON')) {
+          throw new Error(`Backend returned non-JSON response. Check if backend is running at ${API_BASE_URL}`);
+        }
+        throw parseError;
+      }
     }
 
-    return response.json();
+    return safeJsonParse(response);
   } catch (error) {
     // Handle network errors (server not available, CORS, etc.)
     if (error instanceof TypeError && error.message.includes('fetch')) {
@@ -444,10 +489,11 @@ export async function deleteAnalysis(id: number): Promise<void> {
   return response.json();
 }
 
-export async function analyzeCSV(file: File, userGoal: string): Promise<AnalysisResponse> {
+export async function analyzeCSV(file: File, userGoal: string, monthsAhead: number = 12): Promise<AnalysisResponse> {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('user_goal', userGoal);
+  formData.append('months_ahead', monthsAhead.toString());
 
   try {
     // Add timeout to prevent hanging requests
@@ -466,15 +512,19 @@ export async function analyzeCSV(file: File, userGoal: string): Promise<Analysis
     if (!response.ok) {
       let errorDetail = 'Unbekannter Fehler';
       try {
-        const errorData = await response.json();
+        const errorData = await safeJsonParse(response);
         errorDetail = errorData.detail || errorData.message || `HTTP ${response.status}: ${response.statusText}`;
       } catch (e) {
-        errorDetail = `HTTP ${response.status}: ${response.statusText}`;
+        if (e instanceof Error && e.message.includes('Expected JSON')) {
+          errorDetail = `Backend returned non-JSON response (${response.status}). Check if backend is running at ${API_BASE_URL}`;
+        } else {
+          errorDetail = `HTTP ${response.status}: ${response.statusText}`;
+        }
       }
       throw new Error(errorDetail);
     }
 
-    const data = await response.json();
+    const data = await safeJsonParse(response);
     
     // Validate response structure
     if (!data.success) {

@@ -15,7 +15,7 @@ services:
           name: finanzszenarien-db
           property: connectionString
       - key: FRONTEND_URL
-        sync: false  # Нужно будет установить вручную после деплоя фронтенда
+        value: https://finsim-beta-frontend.onrender.com
       - key: PORT
         value: 8000
       - key: OPENAI_API_KEY
@@ -36,7 +36,7 @@ services:
     startCommand: cd frontend && npm start
     envVars:
       - key: NEXT_PUBLIC_API_URL
-        sync: false  # Нужно будет установить вручную после деплоя бэкенда
+        value: https://finsim-beta.onrender.com
     healthCheckPath: /
 
 databases:

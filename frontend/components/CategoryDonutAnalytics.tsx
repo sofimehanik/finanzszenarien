@@ -72,9 +72,17 @@ export function CategoryDonutAnalytics({ transactions }: CategoryDonutAnalyticsP
       setIsDark(document.documentElement.classList.contains('dark'))
     }
     checkTheme()
-    const observer = new MutationObserver(checkTheme)
+    // Use a debounced observer to prevent excessive re-renders
+    let timeoutId: NodeJS.Timeout
+    const observer = new MutationObserver(() => {
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(checkTheme, 50)
+    })
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      clearTimeout(timeoutId)
+    }
   }, [])
 
   // Dark mode colors - slightly brighter for better visibility
@@ -99,18 +107,21 @@ export function CategoryDonutAnalytics({ transactions }: CategoryDonutAnalyticsP
   const textColor = isDark ? "rgba(255, 255, 255, 0.6)" : "#6b7280"
   
   // Custom Tooltip with highlighted numbers
-  const CustomTooltip = ({ active, payload }: any) => {
+  const CustomTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload || payload.length === 0) return null
 
     const entry = payload[0]
-    const label = capitalize(CATEGORY_LABELS[entry.name?.toLowerCase()] || entry.name)
-    const value = currencyDE.format(Number(entry.value))
+    // Get category name - Recharts Pie chart stores data in entry.payload
+    // Try multiple sources to ensure we get the name
+    const categoryName = entry.payload?.name || entry.name || (entry.payload && entry.payload.name) || "Unbekannt"
+    const categoryLabel = capitalize(CATEGORY_LABELS[categoryName?.toLowerCase()] || categoryName)
+    const value = currencyDE.format(Number(entry.value || entry.payload?.value || 0))
 
     return (
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="rounded-2xl border backdrop-blur-xl shadow-2xl p-3"
+        className="rounded-2xl border backdrop-blur-xl shadow-2xl p-4"
         style={{
           backgroundColor: tooltipBg,
           borderColor: tooltipBorder,
@@ -119,17 +130,23 @@ export function CategoryDonutAnalytics({ transactions }: CategoryDonutAnalyticsP
             : "0 20px 40px rgba(0, 0, 0, 0.15)"
         }}
       >
-        <div className="flex items-center gap-2">
-          <div 
-            className="w-3 h-3 rounded-full" 
-            style={{ backgroundColor: entry.payload.fill }}
-          />
-          <span className="text-xs text-finsim-textSecondary dark:text-finsim-dark-textSecondary">
-            {label}:
-          </span>
-          <span className="text-xs font-bold font-mono text-finsim-textMain dark:text-finsim-dark-textMain">
-            {value}
-          </span>
+        <div className="flex flex-col gap-2">
+          {/* Category name at the top - only show category name, no "Daten" */}
+          <div className="flex items-center gap-2">
+            <div 
+              className="w-3 h-3 rounded-full flex-shrink-0" 
+              style={{ backgroundColor: entry.payload?.fill || entry.color || chartColors[0] }}
+            />
+            <span className="text-sm font-semibold text-finsim-textMain dark:text-finsim-dark-textMain">
+              {categoryLabel}
+            </span>
+          </div>
+          {/* Price at the bottom */}
+          <div className="pt-1 border-t border-finsim-borderLight dark:border-finsim-dark-borderLight">
+            <span className="text-base font-bold font-mono text-finsim-textMain dark:text-finsim-dark-textMain">
+              {value}
+            </span>
+          </div>
         </div>
       </motion.div>
     )
@@ -322,6 +339,7 @@ export function CategoryDonutAnalytics({ transactions }: CategoryDonutAnalyticsP
                 label={false}
                 fill="#8884d8"
                 dataKey="value"
+                nameKey="name"
                 isAnimationActive={true}
                 animationDuration={1000}
                 animationEasing="ease-out"
@@ -340,7 +358,10 @@ export function CategoryDonutAnalytics({ transactions }: CategoryDonutAnalyticsP
                   />
                 ))}
               </Pie>
-              <Tooltip content={<CustomTooltip />} />
+              <Tooltip 
+                content={<CustomTooltip />}
+                labelStyle={{ display: 'none' }}
+              />
             </PieChart>
           </ResponsiveContainer>
         </div>

@@ -20,9 +20,17 @@ export function CashflowChart({ transactions }: CashflowChartProps) {
       setIsDark(document.documentElement.classList.contains('dark'))
     }
     checkTheme()
-    const observer = new MutationObserver(checkTheme)
+    // Use a debounced observer to prevent excessive re-renders
+    let timeoutId: NodeJS.Timeout
+    const observer = new MutationObserver(() => {
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(checkTheme, 50)
+    })
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      clearTimeout(timeoutId)
+    }
   }, [])
 
   const cashFlowData = useMemo(() => {

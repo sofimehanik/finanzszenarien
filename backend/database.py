@@ -19,14 +19,22 @@ if not DATABASE_URL:
 if DATABASE_URL and DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
 
-# Создать engine
+# Создать engine с улучшенными настройками для Render/PostgreSQL
 if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(
         DATABASE_URL,
         connect_args={"check_same_thread": False}
     )
 else:
-    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+    # Для PostgreSQL на Render: улучшенные настройки пула соединений
+    engine = create_engine(
+        DATABASE_URL,
+        pool_pre_ping=True,  # Проверка соединения перед использованием
+        pool_size=5,  # Количество соединений в пуле
+        max_overflow=10,  # Дополнительные соединения при нагрузке
+        pool_recycle=3600,  # Переиспользование соединений каждый час
+        echo=False  # Отключить SQL логирование в продакшене
+    )
 
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

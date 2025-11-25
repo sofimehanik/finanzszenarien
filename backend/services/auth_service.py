@@ -141,9 +141,18 @@ class AuthService:
             is_active=True
         )
         db.add(new_user)
-        db.commit()
-        db.refresh(new_user)
-        return new_user
+        try:
+            db.commit()
+            db.refresh(new_user)
+            # Убеждаемся, что пользователь сохранен в базе
+            db.flush()  # Принудительно сохраняем изменения
+            return new_user
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to save user to database: {str(e)}"
+            )
 
     @staticmethod
     def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:

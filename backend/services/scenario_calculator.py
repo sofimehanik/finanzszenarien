@@ -49,13 +49,14 @@ class ScenarioCalculator:
     def __init__(self, months_ahead: int = 12):
         self.months_ahead = months_ahead
     
-    def calculate_all_scenarios(self, data: ParsedFinanceData, user_goal: Optional[str] = None) -> Dict[str, ScenarioResult]:
+    def calculate_all_scenarios(self, data: ParsedFinanceData, user_goal: Optional[str] = None, quiz_profile: Optional[Dict] = None) -> Dict[str, ScenarioResult]:
         """
-        Berechnet alle drei Szenarien basierend auf historischen Daten und Benutzerzielen.
+        Berechnet alle drei Szenarien basierend auf historischen Daten, Benutzerzielen und Quiz-Profil.
         
         Args:
             data: ParsedFinanceData aus CSV-Parser
             user_goal: Optional user goal/query to incorporate into calculations
+            quiz_profile: Optional quiz profile with user financial data (income, expenses, etc.)
             
         Returns:
             Dictionary mit allen Szenarien
@@ -66,10 +67,17 @@ class ScenarioCalculator:
         # Parse user goal to extract financial information
         goal_info = self._parse_user_goal(user_goal) if user_goal else {}
         
+        # Parse quiz profile to extract real financial data
+        quiz_info = self._parse_quiz_profile(quiz_profile) if quiz_profile else {}
+        
+        # Merge quiz data with historical stats for more accurate calculations
+        if quiz_info:
+            historical_stats = self._merge_quiz_data_with_stats(historical_stats, quiz_info)
+        
         scenarios = {
-            'best_case': self._calculate_best_case(historical_stats, goal_info),
-            'worst_case': self._calculate_worst_case(historical_stats, goal_info),
-            'realistic_case': self._calculate_realistic_case(historical_stats, goal_info)
+            'best_case': self._calculate_best_case(historical_stats, goal_info, quiz_info),
+            'worst_case': self._calculate_worst_case(historical_stats, goal_info, quiz_info),
+            'realistic_case': self._calculate_realistic_case(historical_stats, goal_info, quiz_info)
         }
         
         return scenarios
@@ -122,6 +130,176 @@ class ScenarioCalculator:
             info['goal_type'] = 'savings'
         
         return info
+    
+    def _parse_quiz_profile(self, quiz_profile: Dict) -> Dict:
+        """
+        Parst Quiz-Profil und extrahiert finanzielle Informationen.
+        
+        Returns:
+            Dictionary mit extrahierten Informationen aus Quiz
+        """
+        info = {
+            'monthly_income': None,
+            'monthly_expenses': None,
+            'savings_goal': None,
+            'emergency_fund': None,
+            'has_debt': False,
+            'debt_amount': None,
+        }
+        
+        def parse_amount(value):
+            """Helper to parse amount from various formats"""
+            if not value:
+                return None
+            # Remove currency symbols, spaces, and handle European format
+            cleaned = re.sub(r'[€\s]', '', str(value))
+            # Handle European format (1.234,56) or US format (1,234.56)
+            if ',' in cleaned and '.' in cleaned:
+                # European format: replace . with nothing, , with .
+                if cleaned.rindex(',') > cleaned.rindex('.'):
+                    cleaned = cleaned.replace('.', '').replace(',', '.')
+                else:
+                    cleaned = cleaned.replace(',', '')
+            elif ',' in cleaned:
+                # Could be European thousands separator or decimal
+                if len(cleaned.split(',')[-1]) <= 2:  # Decimal part
+                    cleaned = cleaned.replace('.', '').replace(',', '.')
+                else:
+                    cleaned = cleaned.replace(',', '')
+            try:
+                return float(cleaned)
+            except (ValueError, AttributeError):
+                return None
+        
+        # Parse monthly income - try multiple field names
+        income = (quiz_profile.get('monthlyIncome') or 
+                 quiz_profile.get('monthly_income') or 
+                 quiz_profile.get('net_income') or
+                 quiz_profile.get('netIncome'))
+        if income:
+            parsed = parse_amount(income)
+            if parsed and parsed > 0:
+                info['monthly_income'] = parsed
+        
+        # Parse monthly expenses - try multiple field names
+        expenses = (quiz_profile.get('monthlyExpenses') or 
+                   quiz_profile.get('monthly_expenses') or
+                   quiz_profile.get('fixed_costs') or
+                   quiz_profile.get('fixedCosts'))
+        if expenses:
+            parsed = parse_amount(expenses)
+            if parsed and parsed > 0:
+                info['monthly_expenses'] = parsed
+        
+        # If we have income but no expenses, calculate from savings rate
+        if info['monthly_income'] and not info['monthly_expenses']:
+            savings_rate_str = quiz_profile.get('savings_rate') or quiz_profile.get('savingsRate')
+            if savings_rate_str:
+                try:
+                    savings_rate = float(re.sub(r'[%,\s]', '', str(savings_rate_str)))
+                    savings_amount = info['monthly_income'] * (savings_rate / 100)
+                    info['monthly_expenses'] = max(0, info['monthly_income'] - savings_amount)
+                except (ValueError, AttributeError):
+                    # Default: 70% of income as expenses
+                    info['monthly_expenses'] = info['monthly_income'] * 0.7
+        
+        # Parse savings goal
+        savings = quiz_profile.get('savingsGoal') or quiz_profile.get('savings_goal')
+        if savings:
+            parsed = parse_amount(savings)
+            if parsed and parsed > 0:
+                info['savings_goal'] = parsed
+        
+        # Parse emergency fund
+        emergency = quiz_profile.get('emergencyFund') or quiz_profile.get('emergency_fund')
+        if emergency:
+            parsed = parse_amount(emergency)
+            if parsed and parsed > 0:
+                info['emergency_fund'] = parsed
+        
+        # Check for debt
+        has_debt = quiz_profile.get('hasDebt', False) or quiz_profile.get('has_debt', False)
+        info['has_debt'] = bool(has_debt)
+        
+        debt = quiz_profile.get('debtAmount') or quiz_profile.get('debt_amount')
+        if debt:
+            parsed = parse_amount(debt)
+            if parsed and parsed > 0:
+                info['debt_amount'] = parsed
+        
+        return info
+    
+    def _merge_quiz_data_with_stats(self, stats: Dict, quiz_info: Dict) -> Dict:
+        """
+        Merges quiz profile data with historical statistics for more accurate projections.
+        Prioritizes quiz data when available, but uses historical patterns for variation.
+        """
+        merged_stats = stats.copy()
+        
+        # If quiz provides income data
+        if quiz_info.get('monthly_income'):
+            quiz_income = quiz_info['monthly_income']
+            hist_income = stats.get('avg_income', 0)
+            
+            # If we have historical data, use weighted average (70% quiz, 30% historical)
+            # This respects user input but accounts for actual patterns
+            if hist_income > 0:
+                merged_stats['avg_income'] = quiz_income * 0.7 + hist_income * 0.3
+            else:
+                # No historical data, use quiz data directly
+                merged_stats['avg_income'] = quiz_income
+            
+            # Adjust std based on quiz data (10-15% variation)
+            merged_stats['std_income'] = max(merged_stats.get('std_income', 0), quiz_income * 0.12)
+        
+        # If quiz provides expenses data
+        if quiz_info.get('monthly_expenses'):
+            quiz_expenses = quiz_info['monthly_expenses']
+            hist_expenses = stats.get('avg_expenses', 0)
+            
+            # If we have historical data, use weighted average (70% quiz, 30% historical)
+            if hist_expenses > 0:
+                merged_stats['avg_expenses'] = quiz_expenses * 0.7 + hist_expenses * 0.3
+            else:
+                # No historical data, use quiz data directly
+                merged_stats['avg_expenses'] = quiz_expenses
+            
+            # Adjust std based on quiz data
+            merged_stats['std_expenses'] = max(merged_stats.get('std_expenses', 0), quiz_expenses * 0.12)
+        
+        # If quiz data exists but historical is missing/zero, use quiz data directly
+        if stats.get('avg_income', 0) == 0 and quiz_info.get('monthly_income'):
+            merged_stats['avg_income'] = quiz_info['monthly_income']
+            merged_stats['std_income'] = quiz_info['monthly_income'] * 0.15
+        
+        if stats.get('avg_expenses', 0) == 0 and quiz_info.get('monthly_expenses'):
+            merged_stats['avg_expenses'] = quiz_info['monthly_expenses']
+            merged_stats['std_expenses'] = quiz_info['monthly_expenses'] * 0.15
+        
+        # If we have income but no expenses from quiz, calculate from savings rate
+        if merged_stats.get('avg_income', 0) > 0 and merged_stats.get('avg_expenses', 0) == 0:
+            # Default: 70% of income as expenses (30% savings rate)
+            merged_stats['avg_expenses'] = merged_stats['avg_income'] * 0.7
+            merged_stats['std_expenses'] = merged_stats['avg_expenses'] * 0.12
+        
+        # Ensure we have valid, different values
+        if merged_stats.get('avg_income', 0) <= 0:
+            merged_stats['avg_income'] = 1000  # Fallback minimum
+        if merged_stats.get('avg_expenses', 0) <= 0:
+            merged_stats['avg_expenses'] = merged_stats['avg_income'] * 0.7  # 70% of income as default
+        
+        # Ensure expenses are always less than income (realistic constraint)
+        # Expenses should be 60-90% of income for realistic scenarios
+        if merged_stats['avg_expenses'] >= merged_stats['avg_income'] * 0.95:
+            # Cap expenses at 90% of income to allow some savings
+            merged_stats['avg_expenses'] = merged_stats['avg_income'] * 0.85
+        
+        # Ensure minimum difference between income and expenses (at least 10% savings potential)
+        min_savings = merged_stats['avg_income'] * 0.1
+        if merged_stats['avg_expenses'] > merged_stats['avg_income'] - min_savings:
+            merged_stats['avg_expenses'] = merged_stats['avg_income'] - min_savings
+        
+        return merged_stats
     
     def _analyze_historical_data(self, data: ParsedFinanceData) -> Dict:
         """
@@ -227,10 +405,12 @@ class ScenarioCalculator:
             'num_months': len(sorted_months)  # Anzahl Monate mit Daten
         }
     
-    def _calculate_best_case(self, stats: Dict, goal_info: Dict = None) -> ScenarioResult:
+    def _calculate_best_case(self, stats: Dict, goal_info: Dict = None, quiz_info: Dict = None) -> ScenarioResult:
         """Berechnet optimistisches Szenario mit verbesserter Mathematik"""
         if goal_info is None:
             goal_info = {}
+        if quiz_info is None:
+            quiz_info = {}
         
         projections = []
         cumulative_balance = stats['current_balance']
@@ -243,9 +423,18 @@ class ScenarioCalculator:
         # Adjust expenses if monthly payment is specified
         additional_monthly_expense = goal_info.get('monthly_payment') or 0
         
-        # Basis-Werte mit Momentum berücksichtigen
-        base_income = stats['avg_income'] * stats.get('recent_income_momentum', 1.0)
-        base_expenses = stats['avg_expenses'] * stats.get('recent_expense_momentum', 1.0)
+        # Basis-Werte mit Momentum berücksichtigen - Best Case: optimistic adjustments
+        # Ensure we have valid base values
+        base_income = max(stats.get('avg_income', 1000), 100)  # Minimum 100€
+        base_expenses = max(stats.get('avg_expenses', base_income * 0.7), 50)  # Minimum 50€
+        
+        # Apply momentum and optimistic adjustments
+        base_income = base_income * stats.get('recent_income_momentum', 1.0) * 1.05  # +5% optimistic
+        base_expenses = base_expenses * stats.get('recent_expense_momentum', 1.0) * 0.95  # -5% cost optimization
+        
+        # Ensure expenses are always less than income
+        if base_expenses >= base_income * 0.9:
+            base_expenses = base_income * 0.75  # Ensure at least 25% savings potential
         
         # Optimistische Faktoren: progressive Verbesserung
         income_boost = 1.12  # +12% Start
@@ -282,6 +471,15 @@ class ScenarioCalculator:
             # Sicherstellen, dass Werte positiv sind
             projected_income = max(0, projected_income)
             projected_expenses = max(0, projected_expenses)
+            
+            # Ensure expenses don't exceed income (realistic constraint)
+            if projected_expenses >= projected_income * 0.98:
+                projected_expenses = projected_income * 0.80  # Cap at 80% to ensure savings
+            
+            # Ensure minimum difference (at least 15% savings potential for best case)
+            min_savings = projected_income * 0.15
+            if projected_expenses > projected_income - min_savings:
+                projected_expenses = projected_income - min_savings
             
             projected_balance = projected_income - projected_expenses
             cumulative_balance += projected_balance
@@ -320,10 +518,12 @@ class ScenarioCalculator:
             ]
         )
     
-    def _calculate_worst_case(self, stats: Dict, goal_info: Dict = None) -> ScenarioResult:
+    def _calculate_worst_case(self, stats: Dict, goal_info: Dict = None, quiz_info: Dict = None) -> ScenarioResult:
         """Berechnet pessimistisches Szenario mit verbesserter Mathematik"""
         if goal_info is None:
             goal_info = {}
+        if quiz_info is None:
+            quiz_info = {}
         
         projections = []
         cumulative_balance = stats['current_balance']
@@ -337,8 +537,17 @@ class ScenarioCalculator:
         additional_monthly_expense = goal_info.get('monthly_payment') or 0
         
         # Basis-Werte (konservativ, ohne Momentum-Boost)
-        base_income = stats['avg_income'] * 0.95  # Leicht reduziert
-        base_expenses = stats['avg_expenses'] * 1.05  # Leicht erhöht
+        # Ensure we have valid base values
+        base_income = max(stats.get('avg_income', 1000), 100)  # Minimum 100€
+        base_expenses = max(stats.get('avg_expenses', base_income * 0.7), 50)  # Minimum 50€
+        
+        # Apply conservative adjustments
+        base_income = base_income * 0.95  # Leicht reduziert
+        base_expenses = base_expenses * 1.05  # Leicht erhöht
+        
+        # Ensure expenses don't exceed income too much
+        if base_expenses >= base_income * 0.98:
+            base_expenses = base_income * 0.92  # Cap at 92% to allow some buffer
         
         # Pessimistische Faktoren
         income_reduction = 0.88  # -12% Start
@@ -378,6 +587,15 @@ class ScenarioCalculator:
             # Sicherstellen, dass Werte positiv sind
             projected_income = max(0, projected_income)
             projected_expenses = max(0, projected_expenses)
+            
+            # Ensure expenses don't exceed income too much (worst case can be tight but still realistic)
+            if projected_expenses >= projected_income * 0.98:
+                projected_expenses = projected_income * 0.92  # Cap at 92% to allow minimal buffer
+            
+            # Ensure minimum difference (at least 5% buffer for worst case)
+            min_buffer = projected_income * 0.05
+            if projected_expenses > projected_income - min_buffer:
+                projected_expenses = projected_income - min_buffer
             
             projected_balance = projected_income - projected_expenses
             cumulative_balance += projected_balance
@@ -420,10 +638,12 @@ class ScenarioCalculator:
             ]
         )
     
-    def _calculate_realistic_case(self, stats: Dict, goal_info: Dict = None) -> ScenarioResult:
+    def _calculate_realistic_case(self, stats: Dict, goal_info: Dict = None, quiz_info: Dict = None) -> ScenarioResult:
         """Berechnet realistisches Szenario mit verbesserter Mathematik: Trends, Saisonality, Volatilität"""
         if goal_info is None:
             goal_info = {}
+        if quiz_info is None:
+            quiz_info = {}
         
         projections = []
         cumulative_balance = stats['current_balance']
@@ -437,8 +657,17 @@ class ScenarioCalculator:
         additional_monthly_expense = goal_info.get('monthly_payment') or 0
         
         # Basis-Werte mit Momentum berücksichtigen
-        base_income = stats['avg_income'] * stats.get('recent_income_momentum', 1.0)
-        base_expenses = stats['avg_expenses'] * stats.get('recent_expense_momentum', 1.0)
+        # Ensure we have valid base values
+        base_income = max(stats.get('avg_income', 1000), 100)  # Minimum 100€
+        base_expenses = max(stats.get('avg_expenses', base_income * 0.7), 50)  # Minimum 50€
+        
+        # Apply momentum
+        base_income = base_income * stats.get('recent_income_momentum', 1.0)
+        base_expenses = base_expenses * stats.get('recent_expense_momentum', 1.0)
+        
+        # Ensure expenses are always less than income (realistic)
+        if base_expenses >= base_income * 0.95:
+            base_expenses = base_income * 0.80  # Ensure at least 20% difference
         
         # Seed für reproduzierbare, aber realistische Variationen
         np.random.seed(42)
@@ -491,6 +720,15 @@ class ScenarioCalculator:
             max_expenses = base_expenses * (1 + 3 * cv_expenses)
             min_expenses = base_expenses * (1 - 3 * cv_expenses)
             projected_expenses = np.clip(projected_expenses, min_expenses, max_expenses)
+            
+            # Ensure expenses don't exceed income (realistic constraint)
+            if projected_expenses >= projected_income * 0.98:
+                projected_expenses = projected_income * 0.85  # Cap at 85% to ensure savings
+            
+            # Ensure minimum difference (at least 10% savings potential)
+            min_savings = projected_income * 0.1
+            if projected_expenses > projected_income - min_savings:
+                projected_expenses = projected_income - min_savings
             
             projected_balance = projected_income - projected_expenses
             cumulative_balance += projected_balance

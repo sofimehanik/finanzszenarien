@@ -152,7 +152,7 @@ async def root():
 
 @app.post("/api/auth/register", response_model=Token)
 async def register(user_data: UserRegister, db: Session = Depends(get_db)):
-    """Register a new user"""
+    """Register a new user with improved persistence for Render"""
     try:
         user = AuthService.register_user(
             db=db,
@@ -160,6 +160,15 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
             password=user_data.password,
             full_name=user_data.full_name
         )
+        # Убеждаемся, что пользователь действительно сохранен
+        db.refresh(user)
+        # Проверяем, что пользователь существует в базе
+        verify_user = db.query(User).filter(User.id == user.id).first()
+        if not verify_user:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="User was not saved to database"
+            )
         access_token = AuthService.create_access_token(data={"sub": str(user.id)})
         return Token(
             access_token=access_token,
@@ -179,7 +188,7 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
 
 @app.post("/api/auth/login", response_model=Token)
 async def login(user_data: UserLogin, db: Session = Depends(get_db)):
-    """Login user and return JWT token"""
+    """Login user and return JWT token with improved database persistence"""
     user = AuthService.authenticate_user(db, user_data.email, user_data.password)
     if not user:
         raise HTTPException(
@@ -187,6 +196,13 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    # Обновляем время последнего входа (если есть поле last_login)
+    # Это помогает убедиться, что соединение с БД работает
+    try:
+        db.refresh(user)
+    except Exception:
+        pass  # Игнорируем, если поле не существует
+    
     access_token = AuthService.create_access_token(data={"sub": str(user.id)})
     return Token(
         access_token=access_token,
@@ -645,6 +661,7 @@ Gib nur die Fragen zurück, eine pro Zeile, ohne Nummerierung oder zusätzlichen
 async def analyze_finances(
     file: UploadFile = File(...),
     user_goal: str = Form(...),
+    months_ahead: int = Form(12),  # Default to 12 months
     current_user: Optional[User] = Depends(get_current_user),  # Optional authentication
     db: Session = Depends(get_db)
 ):
@@ -686,10 +703,28 @@ async def analyze_finances(
                 detail=f"Fehler beim Parsen der CSV: {str(e)}"
             )
         
-        # Szenarien berechnen (mit Benutzerziel)
+        # Szenarien berechnen (mit Benutzerziel und Perioden-Parameter)
         try:
-            print("🧮 Berechne Szenarien basierend auf Benutzerziel...")
-            scenarios = scenario_calculator.calculate_all_scenarios(finance_data, user_goal)
+            # Validate months_ahead (1, 6, 12, or 24)
+            valid_months = [1, 6, 12, 24]
+            if months_ahead not in valid_months:
+                months_ahead = 12  # Default to 12 if invalid
+            
+            print(f"🧮 Berechne Szenarien basierend auf Benutzerziel für {months_ahead} Monate...")
+            
+            # Get quiz profile if user is authenticated
+            quiz_profile = None
+            if current_user and current_user.quiz_profile:
+                try:
+                    quiz_profile = json.loads(current_user.quiz_profile)
+                    print(f"📋 Quiz-Profil gefunden: {len(quiz_profile)} Felder")
+                except Exception as e:
+                    print(f"⚠️ Fehler beim Parsen des Quiz-Profils: {str(e)}")
+                    quiz_profile = None
+            
+            # Create calculator instance with specified months_ahead
+            calculator = ScenarioCalculator(months_ahead=months_ahead)
+            scenarios = calculator.calculate_all_scenarios(finance_data, user_goal, quiz_profile)
             print("✅ Szenarien berechnet")
         except Exception as e:
             print(f"❌ Szenario-Berechnung Fehler: {str(e)}")

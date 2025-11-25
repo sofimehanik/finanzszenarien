@@ -211,25 +211,29 @@ export function QuizModal({ open, onClose, onCompleted, existingProfile, default
     }
   }
 
+  if (!open) return null
+
   return (
-    <AnimatePresence>
-      {open && (
+    <>
+    <AnimatePresence mode="wait">
+      <motion.div
+        key="quiz-modal-backdrop"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.15 }}
+        className="fixed inset-0 z-[80] flex items-center justify-center bg-black/30 backdrop-blur-sm"
+        onClick={onClose}
+      >
         <motion.div
-          key="quiz-modal-backdrop"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/30 backdrop-blur-sm"
+          key="quiz-modal-content"
+          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: 20 }}
+          transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+          onClick={(e) => e.stopPropagation()}
+          className="relative w-full max-w-xl rounded-[32px] glass-effect premium-shadow overflow-hidden border border-white/40 dark:border-white/10 max-h-[90vh] flex flex-col"
         >
-          <motion.div
-            key="quiz-modal-content"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className="relative w-full max-w-xl rounded-[32px] glass-effect premium-shadow overflow-hidden border border-white/40 dark:border-white/10 max-h-[90vh] flex flex-col"
-          >
           {/* Static background gradient */}
           <div className="absolute inset-0 bg-gradient-to-br from-finsim-primary/8 via-transparent to-finsim-accent/6 pointer-events-none" />
           
@@ -277,22 +281,25 @@ export function QuizModal({ open, onClose, onCompleted, existingProfile, default
                 <div className="h-2 rounded-full bg-white/40 dark:bg-white/5 overflow-hidden backdrop-blur-sm">
                   <motion.div
                     className="h-full rounded-full bg-gradient-to-r from-finsim-primary via-finsim-primary/90 to-finsim-accent shadow-lg"
+                    layout
                     initial={{ width: 0 }}
                     animate={{ width: `${progress}%` }}
-                    transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+                    transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
                   />
                 </div>
               </div>
             )}
 
-            {!isSummary && currentStep && (
-              <motion.div
-                key={stepIndex}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.15 }}
-                className="space-y-3"
-              >
+            <AnimatePresence mode="wait">
+              {!isSummary && currentStep && (
+                <motion.div
+                  key={`step-${stepIndex}`}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+                  className="space-y-3"
+                >
                 <div className="space-y-2">
                   <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-finsim-primaryLight/30 dark:bg-finsim-dark-primaryLight/20">
                     <span className="text-[10px] uppercase tracking-[0.3em] text-finsim-primary dark:text-finsim-dark-primary font-bold">
@@ -331,14 +338,14 @@ export function QuizModal({ open, onClose, onCompleted, existingProfile, default
                     const isSelected = answers[currentStep.key] === option.value
                     return (
                       <motion.button
-                        key={option.value}
+                        key={`${currentStep.key}-${option.value}`}
                         onClick={() => handleSelect(option.value)}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: idx * 0.03, duration: 0.15 }}
-                        whileHover={{ scale: 1.01 }}
-                        whileTap={{ scale: 0.99 }}
-                        className={`text-left rounded-2xl border p-4 glass-effect transition-all duration-300 ${
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.02, duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+                        whileHover={{ scale: 1.02, y: -2 }}
+                        whileTap={{ scale: 0.98 }}
+                        className={`text-left rounded-2xl border p-4 glass-effect transition-all duration-200 ${
                           isSelected
                             ? "border-finsim-primary dark:border-finsim-dark-primary bg-finsim-primaryLight/30 dark:bg-finsim-dark-primaryLight/20 text-finsim-textMain dark:text-white shadow-lg shadow-finsim-primary/20"
                             : "border-white/60 dark:border-white/15 bg-white/50 dark:bg-white/5 text-finsim-textSecondary dark:text-white/70 hover:border-white/80 dark:hover:border-white/25 hover:bg-white/60 dark:hover:bg-white/10"
@@ -371,14 +378,17 @@ export function QuizModal({ open, onClose, onCompleted, existingProfile, default
                     {error}
                   </motion.p>
                 )}
-              </motion.div>
-            )}
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-            {isSummary && (
+            <AnimatePresence mode="wait">
+              {isSummary && (
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.2 }}
+                key="summary"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
                 className="space-y-2.5"
               >
                 {/* Header with Trophy */}
@@ -442,7 +452,8 @@ export function QuizModal({ open, onClose, onCompleted, existingProfile, default
                   </motion.p>
                 )}
               </motion.div>
-            )}
+              )}
+            </AnimatePresence>
 
           </div>
           
@@ -492,11 +503,11 @@ export function QuizModal({ open, onClose, onCompleted, existingProfile, default
             )}
           </div>
         </motion.div>
-        </motion.div>
-      )}
+      </motion.div>
+      </AnimatePresence>
 
       {/* Achievement Popup */}
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         {showAchievement && (
           <motion.div
             key="achievement-popup"
@@ -563,7 +574,7 @@ export function QuizModal({ open, onClose, onCompleted, existingProfile, default
           </motion.div>
         )}
       </AnimatePresence>
-    </AnimatePresence>
+    </>
   )
 }
 

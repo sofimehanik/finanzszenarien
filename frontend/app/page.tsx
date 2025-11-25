@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef } from "react"
 import { FileUpload } from "@/components/FileUpload"
 import { ScenarioOverview } from "@/components/ScenarioOverview"
 import { ScenarioChart } from "@/components/ScenarioChart"
-import { ScenarioComparisonChart } from "@/components/ScenarioComparisonChart"
 import { FinanceDashboard } from "@/components/FinanceDashboard"
 import PdfExportButton from "@/components/PdfExportButton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -546,6 +545,8 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [userGoal, setUserGoal] = useState("")
+  const [monthsAhead, setMonthsAhead] = useState<number>(12)
+  const [currentFile, setCurrentFile] = useState<File | null>(null)
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [scenarioSliderValue, setScenarioSliderValue] = useState(50) // For interactive range slider
   const [showProfileSettings, setShowProfileSettings] = useState(false)
@@ -793,7 +794,8 @@ export default function Home() {
     try {
       console.log('Using quiz data for analysis')
       console.log('User goal:', userGoal)
-      const result = await analyzeCSV(csvFile, userGoal.trim())
+      setCurrentFile(csvFile)
+      const result = await analyzeCSV(csvFile, userGoal.trim(), monthsAhead)
       console.log('Analysis result:', result)
       setAnalysis(result)
     } catch (err) {
@@ -818,7 +820,8 @@ export default function Home() {
     try {
       console.log('Uploading file:', file.name, file.size, 'bytes')
       console.log('User goal:', userGoal)
-      const result = await analyzeCSV(file, userGoal.trim())
+      setCurrentFile(file)
+      const result = await analyzeCSV(file, userGoal.trim(), monthsAhead)
       console.log('Analysis result:', result)
       console.log('🔍 AI Analysis Debug:', {
         plausibility: result.ai_analysis?.plausibility ? `${result.ai_analysis.plausibility.substring(0, 100)}...` : 'null/empty',
@@ -970,10 +973,11 @@ export default function Home() {
           },
           // Smooth transition when section changes
           layout: {
-            duration: 1.2,
+            duration: 0.8,
             ease: [0.4, 0, 0.2, 1]
           }
         }}
+        style={{ willChange: 'opacity' }}
       />
       {/* Additional subtle gradient layers for depth */}
       <motion.div
@@ -982,6 +986,7 @@ export default function Home() {
           scale: [1, 1.1, 1],
           opacity: [0.15, 0.25, 0.15],
         }}
+        style={{ willChange: 'opacity, transform' }}
         transition={{
           duration: 12,
           repeat: Infinity,
@@ -1791,57 +1796,31 @@ export default function Home() {
                 ref={projectionsRef}
                 className="glass-effect premium-shadow rounded-[24px] p-6 sm:p-8 space-y-6 animate-fade-in-up"
               >
-                <div className="space-y-1">
-                  <h3 className="text-lg font-semibold text-finsim-textMain dark:text-finsim-dark-textMain tracking-tight">Projektionen</h3>
-                  <p className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-relaxed">12-Monats-Vorschau der Szenarien</p>
-                </div>
-                
-                {/* Vergleichsdiagramm aller Szenarien */}
-                <div className="mb-8">
-                  <ScenarioComparisonChart
-                    bestCase={analysis.scenarios.best_case.projections}
-                    realisticCase={analysis.scenarios.realistic_case.projections}
-                    worstCase={analysis.scenarios.worst_case.projections}
-                  />
-                </div>
-                
-                <Tabs defaultValue="best_case" className="w-full">
-                  <TabsList className="grid w-full grid-cols-3 rounded-lg bg-finsim-surfaceElevated dark:bg-finsim-dark-surfaceElevated p-1 border border-finsim-borderLight dark:border-finsim-dark-borderLight h-auto">
-                    <TabsTrigger value="best_case" className="rounded-md data-[state=active]:bg-emerald-50 dark:data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-400 data-[state=active]:shadow-sm text-sm font-medium py-2.5 px-4 transition-all duration-200 data-[state=active]:font-semibold text-finsim-textSecondary dark:text-finsim-dark-textSecondary">
-                      <span className="flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 data-[state=active]:bg-emerald-600 dark:data-[state=active]:bg-emerald-400" />
-                        Best Case
-                      </span>
-                    </TabsTrigger>
-                    <TabsTrigger value="realistic_case" className="rounded-md data-[state=active]:bg-blue-50 dark:data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm text-sm font-medium py-2.5 px-4 transition-all duration-200 data-[state=active]:font-semibold text-finsim-textSecondary dark:text-finsim-dark-textSecondary">
-                      <span className="flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400 data-[state=active]:bg-blue-600 dark:data-[state=active]:bg-blue-400" />
-                        Realistisch
-                      </span>
-                    </TabsTrigger>
-                    <TabsTrigger value="worst_case" className="rounded-md data-[state=active]:bg-red-50 dark:data-[state=active]:bg-red-500/20 data-[state=active]:text-red-700 dark:data-[state=active]:text-red-400 data-[state=active]:shadow-sm text-sm font-medium py-2.5 px-4 transition-all duration-200 data-[state=active]:font-semibold text-finsim-textSecondary dark:text-finsim-dark-textSecondary">
-                      <span className="flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 dark:bg-red-400 data-[state=active]:bg-red-600 dark:data-[state=active]:bg-red-400" />
-                        Worst Case
-                      </span>
-                    </TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="best_case" className="mt-6 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
-                    <div className="bg-finsim-surfaceElevated dark:bg-finsim-dark-surfaceElevated border border-finsim-borderLight dark:border-finsim-dark-borderLight rounded-lg p-5 sm:p-6">
-                      <ScenarioChart projections={analysis.scenarios.best_case.projections} title="Best Case Projektion" />
-                    </div>
-                  </TabsContent>
-                  <TabsContent value="realistic_case" className="mt-6 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
-                    <div className="bg-finsim-surfaceElevated dark:bg-finsim-dark-surfaceElevated border border-finsim-borderLight dark:border-finsim-dark-borderLight rounded-lg p-5 sm:p-6">
-                      <ScenarioChart projections={analysis.scenarios.realistic_case.projections} title="Realistische Projektion" />
-                    </div>
-                  </TabsContent>
-                  <TabsContent value="worst_case" className="mt-6 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
-                    <div className="bg-finsim-surfaceElevated dark:bg-finsim-dark-surfaceElevated border border-finsim-borderLight dark:border-finsim-dark-borderLight rounded-lg p-5 sm:p-6">
-                      <ScenarioChart projections={analysis.scenarios.worst_case.projections} title="Worst Case Projektion" />
-                    </div>
-                  </TabsContent>
-                </Tabs>
+                <ScenarioChart 
+                  bestCase={analysis.scenarios.best_case.projections}
+                  realisticCase={analysis.scenarios.realistic_case.projections}
+                  worstCase={analysis.scenarios.worst_case.projections}
+                  monthsAhead={monthsAhead}
+                  onMonthsAheadChange={async (months: number) => {
+                    if (!currentFile || !userGoal.trim()) {
+                      setError("Bitte lade zuerst eine Datei hoch und gib ein Ziel an.")
+                      return
+                    }
+                    setMonthsAhead(months)
+                    setIsLoading(true)
+                    setError(null)
+                    try {
+                      const result = await analyzeCSV(currentFile, userGoal.trim(), months)
+                      setAnalysis(result)
+                    } catch (err) {
+                      console.error('Recalculation error:', err)
+                      const errorMessage = err instanceof Error ? err.message : "Ein Fehler ist aufgetreten"
+                      setError(errorMessage)
+                    } finally {
+                      setIsLoading(false)
+                    }
+                  }}
+                />
               </section>
 
               {/* Finance Dashboard */}
@@ -2498,11 +2477,43 @@ export default function Home() {
                           <Lightbulb className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                         </div>
                         <div className="space-y-0.5 flex-1">
-                          <h4 className="text-base font-semibold text-finsim-textMain dark:text-finsim-dark-textMain tracking-tight">
-                            Personalisierte Tipps
-                          </h4>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-base font-semibold text-finsim-textMain dark:text-finsim-dark-textMain tracking-tight">
+                              Personalisierte Tipps
+                            </h4>
+                            {(() => {
+                              // Проверяем, есть ли LLM tips
+                              let parsedTips: Array<{ emoji: string; title: string; description: string }> = []
+                              if (tipsText) {
+                                parsedTips = parseTips(tipsText)
+                              }
+                              const isUsingLLM = tipsText && parsedTips.length > 0
+                              
+                              return isUsingLLM ? (
+                                <motion.div
+                                  initial={{ scale: 0 }}
+                                  animate={{ scale: 1 }}
+                                  className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-500/20 dark:border-emerald-500/30"
+                                >
+                                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
+                                  <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider">
+                                    KI-generiert
+                                  </span>
+                                </motion.div>
+                              ) : null
+                            })()}
+                          </div>
                           <p className="text-xs text-finsim-textSecondary dark:text-finsim-dark-textSecondary">
-                            Konkrete Handlungsempfehlungen auf Basis deiner Einnahmen, Ausgaben und Ziele.
+                            {(() => {
+                              let parsedTips: Array<{ emoji: string; title: string; description: string }> = []
+                              if (tipsText) {
+                                parsedTips = parseTips(tipsText)
+                              }
+                              const isUsingLLM = tipsText && parsedTips.length > 0
+                              return isUsingLLM 
+                                ? "KI-generierte Handlungsempfehlungen auf Basis deiner Daten und Ziele."
+                                : "Konkrete Handlungsempfehlungen auf Basis deiner Einnahmen, Ausgaben und Ziele."
+                            })()}
                           </p>
                         </div>
                       </div>
@@ -2652,22 +2663,40 @@ export default function Home() {
                  >
                    Neue Analyse starten
                  </button>
-                 {analysis && (
-                 <PdfExportButton
-                   summary={{
-                     goal: userGoal,
-                     totalIncome: analysis.finance_data.total_income,
-                     totalExpenses: analysis.finance_data.total_expenses,
-                     netBalance: analysis.finance_data.net_balance,
-                     bestTitle: analysis.scenarios.best_case.title,
-                     bestFinal: analysis.scenarios.best_case.final_balance,
-                     realisticTitle: analysis.scenarios.realistic_case.title,
-                     realisticFinal: analysis.scenarios.realistic_case.final_balance,
-                     worstTitle: analysis.scenarios.worst_case.title,
-                     worstFinal: analysis.scenarios.worst_case.final_balance,
-                   }}
-                 />
-                 )}
+                {analysis && (
+                <PdfExportButton
+                  summary={{
+                    goal: userGoal,
+                    totalIncome: analysis.finance_data.total_income,
+                    totalExpenses: analysis.finance_data.total_expenses,
+                    netBalance: analysis.finance_data.net_balance,
+                    savingsRate: analysis.finance_data.total_income > 0 
+                      ? ((analysis.finance_data.total_income - analysis.finance_data.total_expenses) / analysis.finance_data.total_income) * 100 
+                      : 0,
+                    bestTitle: analysis.scenarios.best_case.title,
+                    bestFinal: analysis.scenarios.best_case.final_balance,
+                    bestProjections: analysis.scenarios.best_case.projections.map(p => ({
+                      month: p.month,
+                      cumulative_balance: p.cumulative_balance
+                    })),
+                    realisticTitle: analysis.scenarios.realistic_case.title,
+                    realisticFinal: analysis.scenarios.realistic_case.final_balance,
+                    realisticProjections: analysis.scenarios.realistic_case.projections.map(p => ({
+                      month: p.month,
+                      cumulative_balance: p.cumulative_balance
+                    })),
+                    worstTitle: analysis.scenarios.worst_case.title,
+                    worstFinal: analysis.scenarios.worst_case.final_balance,
+                    worstProjections: analysis.scenarios.worst_case.projections.map(p => ({
+                      month: p.month,
+                      cumulative_balance: p.cumulative_balance
+                    })),
+                    summary: analysis.ai_analysis?.summary || null,
+                    tips: analysis.ai_analysis?.tips || null,
+                  }}
+                  analysis={analysis}
+                />
+                )}
                </div>
             </div>
           ) : null}
@@ -2719,7 +2748,7 @@ export default function Home() {
       )}
 
       {/* Tip Details Modal */}
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         {selectedTip && (
           <motion.div
             initial={{ opacity: 0 }}
