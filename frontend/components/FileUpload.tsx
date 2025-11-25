@@ -861,7 +861,7 @@ export function FileUpload({ onFileSelect, isLoading, canUseQuizData = false, on
                   Füge deine erste Transaktion hinzu
                 </p>
                 <p className="text-xs text-finsim-textMuted dark:text-finsim-dark-textMuted mt-1">
-                  Fülle die Felder oben aus und klicke auf "Transaktion hinzufügen"
+                  Fülle die Felder oben aus und klicke auf &quot;Transaktion hinzufügen&quot;
                 </p>
               </motion.div>
             ) : (
