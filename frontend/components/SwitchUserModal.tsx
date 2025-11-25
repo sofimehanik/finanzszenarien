@@ -160,12 +160,7 @@ export function SwitchUserModal({ open, onClose, onSwitchUser, prefillEmail }: S
       }
 
       // Save user to saved users list
-      saveUser({
-        email: userInfo.email,
-        full_name: userInfo.full_name,
-        avatar_url: userInfo.avatar_url,
-        lastLogin: Date.now()
-      })
+      saveUser(userInfo)
       
       // Save to recent users with token for quick switching
       saveRecentUser({
