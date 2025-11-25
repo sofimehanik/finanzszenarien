@@ -6,8 +6,12 @@ import { AuthProviderWrapper } from "@/components/AuthProviderWrapper"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Finanzszenarien - Deine Finanzplanung",
+  title: "FinSim Beta",
   description: "Analysiere deine Finanzen und plane verschiedene Szenarien",
+  icons: {
+    icon: '/icon.svg',
+    apple: '/icon.svg',
+  },
 }
 
 export default function RootLayout({
