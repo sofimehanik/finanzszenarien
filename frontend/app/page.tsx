@@ -346,7 +346,9 @@ function parseTips(text: string): Array<{ emoji: string; title: string; descript
         const title = rest || fullContent
         
         if (title && description) {
-          tips.push({ emoji, title, description })
+          // Убираем markdown форматирование (**) из заголовка
+          const cleanTitle = title.replace(/\*\*/g, '').trim()
+          tips.push({ emoji, title: cleanTitle, description })
         }
       } else {
         // Альтернативный формат: "1. [Emoji] [Titel] [Beschreibung]" (без тире)
@@ -384,10 +386,13 @@ function parseTips(text: string): Array<{ emoji: string; title: string; descript
           }
           
           if (title) {
+            // Убираем markdown форматирование (**) из заголовка и описания
+            const cleanTitle = title.replace(/\*\*/g, '').trim()
+            const cleanDescription = description.replace(/\*\*/g, '').trim()
             tips.push({
               emoji,
-              title: title.trim(),
-              description: description.trim() || title.trim()
+              title: cleanTitle,
+              description: cleanDescription || cleanTitle
             })
           }
         }
