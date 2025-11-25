@@ -1,20 +1,32 @@
 """
 Database setup and session management
 """
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from pathlib import Path
 
-# SQLite database path
-DATABASE_DIR = Path(__file__).parent
-DATABASE_URL = f"sqlite:///{DATABASE_DIR / 'finanzszenarien.db'}"
+# Использовать DATABASE_URL из окружения (Railway предоставит)
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Create engine
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False}  # Needed for SQLite
-)
+# Для локальной разработки используйте SQLite
+if not DATABASE_URL:
+    DATABASE_DIR = Path(__file__).parent
+    DATABASE_URL = f"sqlite:///{DATABASE_DIR / 'finanzszenarien.db'}"
+
+# PostgreSQL URL может быть в формате postgresql://, нужно заменить
+if DATABASE_URL and DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
+
+# Создать engine
+if DATABASE_URL.startswith("sqlite"):
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False}
+    )
+else:
+    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
