@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react"
 import { FileUpload } from "@/components/FileUpload"
 import { ScenarioOverview } from "@/components/ScenarioOverview"
 import { ScenarioChart } from "@/components/ScenarioChart"
+import { ScenarioComparisonChart } from "@/components/ScenarioComparisonChart"
 import { FinanceDashboard } from "@/components/FinanceDashboard"
 import PdfExportButton from "@/components/PdfExportButton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -1794,6 +1795,16 @@ export default function Home() {
                   <h3 className="text-lg font-semibold text-finsim-textMain dark:text-finsim-dark-textMain tracking-tight">Projektionen</h3>
                   <p className="text-sm text-finsim-textSecondary dark:text-finsim-dark-textSecondary leading-relaxed">12-Monats-Vorschau der Szenarien</p>
                 </div>
+                
+                {/* Vergleichsdiagramm aller Szenarien */}
+                <div className="mb-8">
+                  <ScenarioComparisonChart
+                    bestCase={analysis.scenarios.best_case.projections}
+                    realisticCase={analysis.scenarios.realistic_case.projections}
+                    worstCase={analysis.scenarios.worst_case.projections}
+                  />
+                </div>
+                
                 <Tabs defaultValue="best_case" className="w-full">
                   <TabsList className="grid w-full grid-cols-3 rounded-lg bg-finsim-surfaceElevated dark:bg-finsim-dark-surfaceElevated p-1 border border-finsim-borderLight dark:border-finsim-dark-borderLight h-auto">
                     <TabsTrigger value="best_case" className="rounded-md data-[state=active]:bg-emerald-50 dark:data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-400 data-[state=active]:shadow-sm text-sm font-medium py-2.5 px-4 transition-all duration-200 data-[state=active]:font-semibold text-finsim-textSecondary dark:text-finsim-dark-textSecondary">

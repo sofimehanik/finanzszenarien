@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from "recharts"
 import { ScenarioProjection } from "@/lib/api"
 import { motion, AnimatePresence } from "framer-motion"
 import { Maximize2, Minimize2, X } from "lucide-react"
@@ -194,6 +194,12 @@ export function ScenarioChart({ projections, title }: ScenarioChartProps) {
               axisLine={{ stroke: gridColor }}
             />
             <Tooltip content={<CustomTooltip />} />
+            <ReferenceLine 
+              y={0} 
+              stroke={isDark ? "rgba(255, 255, 255, 0.2)" : "#d1d5db"} 
+              strokeDasharray="2 2"
+              strokeWidth={1}
+            />
             {lineConfig.map((config) => (
               <Line
                 key={config.key}
