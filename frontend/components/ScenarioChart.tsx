@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, Brush } from "recharts"
 import { ScenarioProjection } from "@/lib/api"
 import { motion, AnimatePresence } from "framer-motion"
-import { Maximize2, X, Trophy, Target, AlertTriangle, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Wallet, PiggyBank, DollarSign, Percent, BarChart3, ZoomIn, ZoomOut, RotateCcw } from "lucide-react"
+import { Maximize2, X, Trophy, Target, AlertTriangle, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Wallet, PiggyBank, DollarSign, Percent, BarChart3, ZoomIn, ZoomOut, RotateCcw, Sparkles, Brain } from "lucide-react"
 
 interface ScenarioChartProps {
   bestCase: ScenarioProjection[]
@@ -12,6 +12,19 @@ interface ScenarioChartProps {
   worstCase: ScenarioProjection[]
   monthsAhead?: number
   onMonthsAheadChange?: (months: number) => void
+  aiAnalysis?: {
+    plausibility?: string | null
+    tips?: string | null
+    scenario_analysis?: string | null
+    summary?: string | null
+  }
+  financeData?: {
+    net_balance: number
+    monthly_averages: {
+      income: number
+      expenses: number
+    }
+  }
 }
 
 type ScenarioType = "best" | "realistic" | "worst"
@@ -21,7 +34,9 @@ export function ScenarioChart({
   realisticCase, 
   worstCase,
   monthsAhead = 12,
-  onMonthsAheadChange
+  onMonthsAheadChange,
+  aiAnalysis,
+  financeData
 }: ScenarioChartProps) {
   const [activeLine, setActiveLine] = useState<string | null>(null)
   const [isDark, setIsDark] = useState(false)
@@ -32,8 +47,9 @@ export function ScenarioChart({
     Saldo: true,
     Trend: true,
     Durchschnitt: true,
-    Einnahmen: false,
-    Ausgaben: false,
+    Einnahmen: true,  // Включено по умолчанию для будущих доходов
+    Ausgaben: true,   // Включено по умолчанию для будущих расходов
+    Kontostand: true, // Баланс по счетам
   })
   const [zoomDomain, setZoomDomain] = useState<[number, number] | null>(null)
   const [brushStartIndex, setBrushStartIndex] = useState<number>(0)
@@ -94,13 +110,22 @@ export function ScenarioChart({
   const chartData = useMemo(() => {
     if (!currentProjections || currentProjections.length === 0) return []
     
-    const data = currentProjections.map((p) => ({
-      month: p.month,
-      Einnahmen: Number(p.projected_income ?? 0) || 0,
-      Ausgaben: Number(Math.abs(p.projected_expenses ?? 0)) || 0,
-      Saldo: Number(p.projected_balance ?? 0) || 0,
-      Kumuliert: Number(p.cumulative_balance ?? 0) || 0,
-    }))
+    // Начальный баланс из исторических данных или из первого месяца
+    const initialBalance = financeData?.net_balance ?? 0
+    
+    const data = currentProjections.map((p, index) => {
+      // Баланс по счетам = начальный баланс + накопленный баланс
+      const accountBalance = initialBalance + Number(p.cumulative_balance ?? 0)
+      
+      return {
+        month: p.month,
+        Einnahmen: Number(p.projected_income ?? 0) || 0,
+        Ausgaben: Number(Math.abs(p.projected_expenses ?? 0)) || 0,
+        Saldo: Number(p.projected_balance ?? 0) || 0,
+        Kumuliert: Number(p.cumulative_balance ?? 0) || 0,
+        Kontostand: accountBalance, // Баланс по счетам
+      }
+    })
 
     // Calculate trend line (linear regression for cumulative balance)
     if (data.length > 1) {
@@ -202,6 +227,13 @@ export function ScenarioChart({
       label: "Monatssaldo", 
       priority: "primary",
       description: "Monatlicher Cashflow"
+    },
+    { 
+      key: "Kontostand", 
+      color: isDark ? "#a78bfa" : "#8b5cf6", 
+      label: "Kontostand", 
+      priority: "primary",
+      description: "Tatsächlicher Kontostand (Startguthaben + Kumuliert)"
     },
     // Secondary: Reference lines for comparison
     { 
@@ -583,6 +615,10 @@ export function ScenarioChart({
                       ? isDark
                         ? "bg-red-500/20 text-red-400 border border-red-500/30"
                         : "bg-red-50 text-red-700 border border-red-200"
+                      : config.key === "Kontostand"
+                      ? isDark
+                        ? "bg-purple-500/20 text-purple-400 border border-purple-500/30"
+                        : "bg-purple-50 text-purple-700 border border-purple-200"
                       : config.key === "Trend"
                       ? isDark
                         ? "bg-purple-500/20 text-purple-400 border border-purple-500/30"
@@ -969,6 +1005,40 @@ export function ScenarioChart({
             </div>
           </div>
         </motion.div>
+
+        {/* AI Insights - Based on AI Analysis */}
+        {aiAnalysis && (aiAnalysis.summary || aiAnalysis.plausibility) && (
+          <motion.div
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            className="p-4 rounded-xl bg-gradient-to-br from-purple-50/50 to-indigo-50/50 dark:from-purple-950/20 dark:to-indigo-950/20 border border-purple-200/50 dark:border-purple-800/30"
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-1.5 rounded-lg bg-purple-100 dark:bg-purple-900/40">
+                <Sparkles className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+              </div>
+              <h5 className="text-xs font-semibold text-purple-900 dark:text-purple-200 uppercase tracking-wide">
+                KI-Empfehlungen
+              </h5>
+            </div>
+            {aiAnalysis.summary && (
+              <p className="text-xs text-purple-800 dark:text-purple-300 leading-relaxed mb-2">
+                {aiAnalysis.summary}
+              </p>
+            )}
+            {aiAnalysis.plausibility && (
+              <div className="mt-2 pt-2 border-t border-purple-200/50 dark:border-purple-800/30">
+                <p className="text-[10px] font-medium text-purple-700 dark:text-purple-400 uppercase tracking-wide mb-1.5">
+                  Plausibilitätsanalyse:
+                </p>
+                <p className="text-xs text-purple-800/90 dark:text-purple-300/90 leading-relaxed">
+                  {aiAnalysis.plausibility}
+                </p>
+              </div>
+            )}
+          </motion.div>
+        )}
       </motion.div>
     </div>
   )

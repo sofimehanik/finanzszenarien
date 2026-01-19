@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react"
 import { FileUpload } from "@/components/FileUpload"
 import { ScenarioOverview } from "@/components/ScenarioOverview"
 import { ScenarioChart } from "@/components/ScenarioChart"
+import { FutureView } from "@/components/FutureView"
 import { FinanceDashboard } from "@/components/FinanceDashboard"
 import PdfExportButton from "@/components/PdfExportButton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -12,7 +13,7 @@ import { Button } from "@/components/ui/button"
 import { analyzeCSV, AnalysisResponse, getSuggestedQuestions, getTipDetails, updateUserProfile } from "@/lib/api"
 import { useAuth } from "@/contexts/AuthContext"
 import { cn } from "@/lib/utils"
-import { AlertCircle, Lightbulb, Globe, User, Brain, Sparkles, LogOut, Menu, ChevronDown, ChevronUp, X, Loader2, TrendingUp, TrendingDown, FileText, CheckCircle, ArrowUp, ArrowDown, Minus, Edit2, Check, BarChart3, Target, Info, ArrowRight, Zap, Shield } from "lucide-react"
+import { AlertCircle, Lightbulb, Globe, User, Brain, Sparkles, LogOut, Menu, ChevronDown, ChevronUp, X, Loader2, TrendingUp, TrendingDown, FileText, CheckCircle, ArrowUp, ArrowDown, Minus, Edit2, Check, BarChart3, Target, Info, ArrowRight, Zap, Shield, Upload } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { AuthModal } from "@/components/AuthModal"
 import { ProfileSettings } from "@/components/ProfileSettings"
@@ -1825,8 +1826,23 @@ export default function Home() {
                       setIsLoading(false)
                     }
                   }}
+                  aiAnalysis={analysis.ai_analysis}
+                  financeData={analysis.finance_data}
                 />
               </section>
+
+              {/* Future View - Enhanced visualization */}
+              {analysis && analysis.scenarios && (
+                <section className="glass-effect premium-shadow rounded-[24px] p-6 sm:p-8 space-y-6 animate-fade-in-up">
+                  <FutureView
+                    bestCase={analysis.scenarios.best_case.projections}
+                    realisticCase={analysis.scenarios.realistic_case.projections}
+                    worstCase={analysis.scenarios.worst_case.projections}
+                    financeData={analysis.finance_data}
+                    monthsAhead={monthsAhead}
+                  />
+                </section>
+              )}
 
               {/* Finance Dashboard */}
               {analysis.finance_data.transactions.length > 0 && (

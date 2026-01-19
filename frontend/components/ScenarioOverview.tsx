@@ -81,8 +81,20 @@ export function ScenarioOverview({ analysis }: ScenarioOverviewProps) {
 
   return (
     <div className="space-y-6">
-      {/* Scenario Selector Cards */}
-      <div className="grid md:grid-cols-3 gap-3">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-xl font-bold text-finsim-textMain dark:text-finsim-dark-textMain">
+            Finanzszenarien
+          </h3>
+          <p className="text-sm text-finsim-textMuted dark:text-finsim-dark-textMuted mt-1">
+            Vergleiche die drei Szenarien und wähle das passende für dich
+          </p>
+        </div>
+      </div>
+
+      {/* Scenario Selector Cards - Enhanced with better visual separation */}
+      <div className="grid md:grid-cols-3 gap-4">
         {Object.entries(scenarios).map(([key, scenario], idx) => {
           const scConfig = getScenarioConfig(key)
           const ScIcon = scConfig.icon
@@ -104,53 +116,84 @@ export function ScenarioOverview({ analysis }: ScenarioOverviewProps) {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: idx * 0.08, duration: 0.3, ease: "easeOut" }}
-              whileHover={{ scale: 1.02, y: -2 }}
+              whileHover={{ scale: isSelected ? 1 : 1.03, y: isSelected ? 0 : -4 }}
               whileTap={{ scale: 0.98 }}
               className={cn(
-                "relative p-4 rounded-xl glass-effect border transition-all duration-200 text-left group cursor-pointer",
+                "relative p-5 rounded-2xl glass-effect border-2 transition-all duration-300 text-left group cursor-pointer overflow-hidden",
                 isSelected 
-                  ? `${scConfig.borderColor} border-2 bg-gradient-to-br ${scConfig.bgGradient}` 
-                  : "border-finsim-borderLight/50 dark:border-finsim-dark-borderLight/50 hover:border-finsim-primary/30"
+                  ? `${scConfig.borderColor} shadow-lg shadow-current/10 bg-gradient-to-br ${scConfig.bgGradient}` 
+                  : "border-finsim-borderLight/50 dark:border-finsim-dark-borderLight/50 hover:border-finsim-primary/40 hover:shadow-md bg-white/50 dark:bg-white/5"
               )}
             >
+              {/* Enhanced background gradient for selected */}
+              {isSelected && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className={cn("absolute inset-0 bg-gradient-to-br opacity-20", scConfig.bgGradient)}
+                />
+              )}
+              
+              {/* Accent bar on left side for better visual separation */}
+              <motion.div
+                initial={{ scaleY: 0 }}
+                animate={{ scaleY: isSelected ? 1 : 0.3 }}
+                transition={{ duration: 0.3 }}
+                className={cn(
+                  "absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl",
+                  isSelected ? scConfig.bgBarActive : scConfig.bgBar
+                )}
+              />
               {isSelected && (
                 <>
+                  {/* Top accent bar */}
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: "100%" }}
-                    transition={{ duration: 0.2 }}
-                    className={cn("absolute top-0 left-0 right-0 h-0.5 rounded-t-xl", scConfig.bgBarActive)}
+                    transition={{ duration: 0.3 }}
+                    className={cn("absolute top-0 left-0 right-0 h-1 rounded-t-2xl", scConfig.bgBarActive)}
                   />
                   {/* Collapse indicator */}
                   <motion.div
                     animate={{ rotate: isExpanded ? 180 : 0 }}
                     transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-                    className="absolute top-3 right-3"
+                    className="absolute top-4 right-4 z-10"
                   >
-                    <ChevronDown className={cn("h-4 w-4", scConfig.textColor)} />
+                    <ChevronDown className={cn("h-5 w-5", scConfig.textColor)} />
+                  </motion.div>
+                  {/* Selected badge */}
+                  <motion.div
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.2 }}
+                    className={cn("absolute top-3 left-3 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider", scConfig.bgBarActive, "text-white")}
+                  >
+                    Aktiv
                   </motion.div>
                 </>
               )}
 
-              <div className="flex items-center gap-2.5 mb-3">
+              <div className="relative z-10 flex items-center gap-3 mb-4 mt-1">
                 <div className={cn(
-                  "p-2 rounded-lg transition-colors",
-                  isSelected ? scConfig.bgIcon : "bg-finsim-surfaceElevated/50 dark:bg-finsim-dark-surfaceElevated/50"
+                  "p-3 rounded-xl transition-all duration-300",
+                  isSelected 
+                    ? `${scConfig.bgIcon} shadow-md` 
+                    : "bg-finsim-surfaceElevated/50 dark:bg-finsim-dark-surfaceElevated/50 group-hover:bg-finsim-surfaceElevated dark:group-hover:bg-finsim-dark-surfaceElevated"
                 )}>
                   <ScIcon className={cn(
-                    "h-4 w-4",
-                    isSelected ? scConfig.textColor : "text-finsim-textSecondary dark:text-finsim-dark-textSecondary"
+                    "h-5 w-5",
+                    isSelected ? scConfig.textColor : "text-finsim-textSecondary dark:text-finsim-dark-textSecondary group-hover:text-finsim-textMain dark:group-hover:text-white"
                   )} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className={cn(
-                    "text-sm font-semibold truncate mb-0.5",
+                    "text-base font-bold truncate mb-1",
                     isSelected ? scConfig.textColor : "text-finsim-textMain dark:text-white"
                   )}>
                     {scenario.title}
                   </p>
                   <p className={cn(
-                    "text-[10px] uppercase tracking-wider font-medium",
+                    "text-xs uppercase tracking-wider font-semibold",
                     isSelected ? scConfig.textColor : "text-finsim-textMuted dark:text-finsim-dark-textMuted"
                   )}>
                     {scConfig.label}
@@ -158,25 +201,25 @@ export function ScenarioOverview({ analysis }: ScenarioOverviewProps) {
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 gap-3 pt-3 border-t border-finsim-borderLight/30 dark:border-finsim-dark-borderLight/30">
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-finsim-textMuted dark:text-finsim-dark-textMuted mb-1">
+              <div className="relative z-10 grid grid-cols-2 gap-4 pt-4 border-t-2 border-finsim-borderLight/40 dark:border-finsim-dark-borderLight/40">
+                <div className="p-2 rounded-lg bg-white/40 dark:bg-white/5">
+                  <p className="text-[10px] uppercase tracking-wider text-finsim-textMuted dark:text-finsim-dark-textMuted mb-1.5 font-semibold">
                     Monatlich
                   </p>
                   <p className={cn(
-                    "text-base font-bold font-mono",
+                    "text-lg font-bold font-mono",
                     isSelected ? scConfig.textColor : "text-finsim-textMain dark:text-white"
                   )}>
                     {scenario.monthly_savings >= 0 ? "+" : ""}
                     {scenario.monthly_savings.toFixed(2)} €
                   </p>
                 </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-finsim-textMuted dark:text-finsim-dark-textMuted mb-1">
+                <div className="p-2 rounded-lg bg-white/40 dark:bg-white/5">
+                  <p className="text-[10px] uppercase tracking-wider text-finsim-textMuted dark:text-finsim-dark-textMuted mb-1.5 font-semibold">
                     12 Monate
                   </p>
                   <p className={cn(
-                    "text-base font-bold font-mono",
+                    "text-lg font-bold font-mono",
                     isSelected ? scConfig.textColor : "text-finsim-textMain dark:text-white"
                   )}>
                     {scenario.final_balance >= 0 ? "+" : ""}

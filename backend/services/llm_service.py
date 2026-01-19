@@ -4,6 +4,7 @@ Unterstützt OpenAI GPT-4o und Google Gemini.
 """
 
 import os
+import json
 from typing import Dict, Optional
 from pathlib import Path
 from openai import OpenAI
@@ -631,4 +632,498 @@ TIPPS:
 4. 🧱 Notgroschen aufbauen - Baue einen Notgroschen für unerwartete Ausgaben auf, um finanzielle Sicherheit zu gewinnen
 5. 🚀 Langfristige Ziele setzen - Definiere konkrete, messbare finanzielle Ziele mit klaren Zeitrahmen
 6. 🔍 Regelmäßige Finanzanalyse - Führe monatlich eine Analyse deiner Finanzen durch, um Trends zu erkennen und Anpassungen vorzunehmen"""
+    
+    def generate_scenario_data(self, finance_data: ParsedFinanceData,
+                               user_goal: Optional[str] = None,
+                               months_ahead: int = 12,
+                               user_profession: Optional[str] = None,
+                               user_about_me: Optional[str] = None,
+                               user_financial_goals: Optional[str] = None,
+                               quiz_profile: Optional[Dict[str, str]] = None) -> Optional[Dict]:
+        """
+        Generiert konkrete Finanzdaten für Szenarien basierend auf Benutzerziel.
+        AI gibt konkrete Einnahmen/Ausgaben zurück, nicht nur Prozente.
+        
+        Returns:
+            Dictionary mit 'best_case', 'realistic_case', 'worst_case'
+            Jedes Szenario enthält:
+            - base_monthly_income: Basis-Einkommen pro Monat
+            - base_monthly_expenses: Basis-Ausgaben pro Monat
+            - expense_breakdown: Detaillierte Aufschlüsselung der Ausgaben (z.B. Miete, Essen, Versicherung)
+            - income_sources: Quellen des Einkommens
+            - description: Beschreibung des Szenarios
+            Oder None bei Fehler
+        """
+        goal_context = f"\n\nWICHTIG: Der Benutzer hat folgendes Ziel/Frage: {user_goal}\nGeneriere realistische Finanzdaten basierend auf diesem Ziel." if user_goal else ""
+        
+        user_context = ""
+        if user_profession:
+            user_context += f"\nBeruf/Profession: {user_profession}"
+        if user_about_me:
+            user_context += f"\nPersönliche Informationen: {user_about_me}"
+        if user_financial_goals:
+            user_context += f"\nFinanzielle Ziele: {user_financial_goals}"
+        quiz_context = self._format_quiz_profile(quiz_profile)
+        if quiz_context:
+            user_context += quiz_context
+        
+        monthly_income = finance_data.monthly_averages['income']
+        monthly_expenses = finance_data.monthly_averages['expenses']
+        top_categories = sorted(finance_data.categories.items(), key=lambda x: x[1], reverse=True)[:5]
+        category_details = ', '.join([f"{cat}: {amt:.0f} €" for cat, amt in top_categories]) or "keine"
+        
+        prompt = f"""Erstelle realistische Finanzszenarien basierend auf den historischen Daten und dem Benutzerziel.{goal_context}{user_context}
+
+AKTUELLE FINANZDATEN:
+- Monatliches Einkommen (Durchschnitt): {monthly_income:.2f} €
+- Monatliche Ausgaben (Durchschnitt): {monthly_expenses:.2f} €
+- Top-Ausgabenkategorien: {category_details}
+- Zeitraum: {months_ahead} Monate
+
+AUFGABE:
+Generiere für JEDES der 3 Szenarien (best_case, realistic_case, worst_case) konkrete Finanzdaten im JSON-Format.
+
+BEISPIEL für Ziel "Studium in Australien":
+- best_case: Einkommen (Stipendium + Teilzeitjob), Ausgaben (Miete in Sydney, Essen, Versicherung, Flug)
+- realistic_case: Einkommen (Teilzeitjob), Ausgaben (Miete, Essen, Versicherung, Flug, Notfallreserve)
+- worst_case: Einkommen (nur Stipendium), Ausgaben (hohe Miete, teures Essen, Versicherung, Flug, unerwartete Kosten)
+
+WICHTIG:
+- Gib KONKRETE ZAHLEN, nicht nur Prozente
+- Berücksichtige das Benutzerziel bei der Berechnung (z.B. wenn Ziel "Studium in Australien" → Miete in Australien, Versicherung, Flugkosten)
+- expense_breakdown sollte konkrete Kategorien enthalten (z.B. "Miete: 1200", "Essen: 400", "Versicherung: 150")
+- income_sources sollte Quellen beschreiben (z.B. "Gehalt: 2500", "Nebentätigkeit: 300")
+
+JSON-Format:
+{{
+  "best_case": {{
+    "base_monthly_income": <Zahl>,
+    "base_monthly_expenses": <Zahl>,
+    "expense_breakdown": {{"Kategorie1": <Zahl>, "Kategorie2": <Zahl>, ...}},
+    "income_sources": {{"Quelle1": <Zahl>, "Quelle2": <Zahl>, ...}},
+    "description": "Kurze Beschreibung des Szenarios"
+  }},
+  "realistic_case": {{
+    "base_monthly_income": <Zahl>,
+    "base_monthly_expenses": <Zahl>,
+    "expense_breakdown": {{"Kategorie1": <Zahl>, "Kategorie2": <Zahl>, ...}},
+    "income_sources": {{"Quelle1": <Zahl>, "Quelle2": <Zahl>, ...}},
+    "description": "Kurze Beschreibung des Szenarios"
+  }},
+  "worst_case": {{
+    "base_monthly_income": <Zahl>,
+    "base_monthly_expenses": <Zahl>,
+    "expense_breakdown": {{"Kategorie1": <Zahl>, "Kategorie2": <Zahl>, ...}},
+    "income_sources": {{"Quelle1": <Zahl>, "Quelle2": <Zahl>, ...}},
+    "description": "Kurze Beschreibung des Szenarios"
+  }}
+}}
+
+ANTWORTE NUR MIT VALIDEM JSON, KEINEM ANDEREN TEXT."""
+        
+        try:
+            if self.provider == 'openai':
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": self._get_system_prompt() + "\n\nWICHTIG: Antworte IMMER mit validem JSON-Format. Gib konkrete Zahlen, keine Prozente."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.7,
+                    max_tokens=2000,
+                    response_format={"type": "json_object"}
+                )
+                result_text = response.choices[0].message.content.strip()
+            else:  # Gemini
+                full_prompt = f"""{self._get_system_prompt()}
+
+WICHTIG: Antworte IMMER mit validem JSON-Format. Gib konkrete Zahlen, keine Prozente.
+
+{prompt}"""
+                generation_config = genai.types.GenerationConfig(
+                    max_output_tokens=2000,
+                    temperature=0.7,
+                    response_mime_type="application/json"
+                )
+                response = self.model.generate_content(full_prompt, generation_config=generation_config)
+                result_text = response.text.strip() if response.text else ""
+            
+            if not result_text:
+                print("⚠️ Leere Antwort von LLM für Szenario-Daten")
+                return None
+            
+            # Try to extract JSON if there's extra text
+            if result_text.startswith('```json'):
+                result_text = result_text[7:]
+            if result_text.startswith('```'):
+                result_text = result_text[3:]
+            if result_text.endswith('```'):
+                result_text = result_text[:-3]
+            result_text = result_text.strip()
+            
+            try:
+                result_dict = json.loads(result_text)
+            except json.JSONDecodeError as e:
+                print(f"❌ JSON-Parse-Fehler bei Szenario-Daten: {e}")
+                print(f"📝 Antwort-Text (erste 500 Zeichen): {result_text[:500]}")
+                return None
+            
+            # Validate structure
+            required_scenarios = ['best_case', 'realistic_case', 'worst_case']
+            for scenario_key in required_scenarios:
+                if scenario_key not in result_dict:
+                    print(f"⚠️ Fehlendes Szenario: {scenario_key}")
+                    return None
+                scenario = result_dict[scenario_key]
+                required_fields = ['base_monthly_income', 'base_monthly_expenses', 'expense_breakdown', 'income_sources', 'description']
+                for field in required_fields:
+                    if field not in scenario:
+                        print(f"⚠️ Fehlendes Feld {field} in {scenario_key}")
+                        return None
+            
+            print(f"✅ Szenario-Daten erhalten: {len(result_text)} Zeichen")
+            return result_dict
+            
+        except Exception as e:
+            error_msg = str(e)
+            print(f"❌ Fehler bei Szenario-Daten-Generierung: {error_msg}")
+            import traceback
+            traceback.print_exc()
+            if "429" in error_msg or "quota" in error_msg.lower() or "insufficient_quota" in error_msg.lower():
+                print("⚠️ API-Quota überschritten - keine LLM-Szenario-Daten verfügbar")
+            return None
+    
+    def generate_unified_analysis(self, scenarios: Dict[str, ScenarioResult],
+                                  finance_data: ParsedFinanceData,
+                                  user_goal: Optional[str] = None,
+                                  user_profession: Optional[str] = None,
+                                  user_about_me: Optional[str] = None,
+                                  user_financial_goals: Optional[str] = None,
+                                  quiz_profile: Optional[Dict[str, str]] = None) -> Optional[Dict[str, str]]:
+        """
+        Generiert eine einheitliche Analyse mit allen 4 Komponenten in einem einzigen LLM-Aufruf.
+        Gibt ein strukturiertes JSON-Dictionary zurück.
+        
+        Returns:
+            Dictionary mit keys: 'plausibility', 'tips', 'scenario_analysis', 'summary'
+            Oder None bei Fehler
+        """
+        
+        # Build user context
+        goal_context = f"\n\nWICHTIG: Der Benutzer hat folgendes Ziel/Frage: {user_goal}" if user_goal else ""
+        
+        user_context = ""
+        if user_profession:
+            user_context += f"\nBeruf/Profession des Benutzers: {user_profession}"
+        if user_about_me:
+            user_context += f"\nZusätzliche Informationen über den Benutzer: {user_about_me}"
+        if user_financial_goals:
+            user_context += f"\nFinanzielle Ziele des Benutzers: {user_financial_goals}"
+        quiz_context = self._format_quiz_profile(quiz_profile)
+        if quiz_context:
+            user_context += quiz_context
+        
+        # Calculate metrics
+        best = scenarios['best_case']
+        worst = scenarios['worst_case']
+        realistic = scenarios['realistic_case']
+        monthly_savings = finance_data.monthly_averages['income'] - finance_data.monthly_averages['expenses']
+        savings_rate = (monthly_savings / finance_data.monthly_averages['income'] * 100) if finance_data.monthly_averages['income'] > 0 else 0
+        top_categories = sorted(finance_data.categories.items(), key=lambda x: x[1], reverse=True)[:3]
+        category_breakdown = ', '.join([f"{cat}: {amt:.0f} €" for cat, amt in top_categories]) or "keine auffälligen Kategorien"
+        top_spend = sorted(finance_data.categories.items(), key=lambda x: x[1], reverse=True)[:4]
+        category_details = ', '.join([f"{cat}: {amt:.0f} € ({amt/finance_data.total_expenses*100:.1f}%)" for cat, amt in top_spend]) or "keine dominanten Kategorien"
+        
+        # Build unified prompt
+        prompt = f"""Erstelle eine umfassende Finanzanalyse basierend auf den folgenden Daten. Du musst ALLE 4 Teile der Analyse in einem strukturierten JSON-Format zurückgeben.{goal_context}{user_context}
+
+FINANZDATEN:
+- Einnahmen ∅: {finance_data.monthly_averages['income']:.2f} € | Ausgaben ∅: {finance_data.monthly_averages['expenses']:.2f} €
+- Ersparnis ∅: {monthly_savings:.2f} € (Sparrate {savings_rate:.1f}%)
+- Top-Ausgaben: {category_details}
+
+SZENARIEN:
+- BEST CASE: {best.monthly_savings:.2f} €/Monat → {best.final_balance:.2f} €
+- REALISTIC CASE: {realistic.monthly_savings:.2f} €/Monat → {realistic.final_balance:.2f} €
+- WORST CASE: {worst.monthly_savings:.2f} €/Monat → {worst.final_balance:.2f} €
+
+AUFGABE:
+Erstelle eine JSON-Antwort mit genau diesen 4 Feldern:
+
+1. "plausibility": GENAU zwei Absätze (je 3-4 Sätze, gesamt 90-120 Wörter). 
+   - Im ersten Absatz: Welches Szenario ist am plausibelsten und warum? Verknüpfe es direkt mit dem Ziel.
+   - Im zweiten Absatz: Welche Risiken und Chancen folgen daraus?
+   - WICHTIG: Fließtext ohne Überschriften, ohne "Absatz 1/2", ohne Nummerierung. Maximal 1-2 Emojis.
+
+2. "tips": Strukturierte Tipps im Format:
+   - Kurzes Fazit (2 Sätze) – Kann das Ziel erreicht werden?
+   - Direkte Antwort auf die Frage (1 Satz + 2 Bulletpoints mit ✓/⚠️/💡)
+   - GENAU 6 Tipps im Format „Emoji Titel – 1 kurzer Satz“ (wichtigste zuerst, direkt auf das Ziel bezogen)
+   - Insgesamt maximal 220 Wörter
+
+3. "scenario_analysis": KURZE Analyse aller 3 Szenarien (MAXIMAL 2-3 Sätze pro Szenario):
+   - BEST CASE: [Kurze Beschreibung]
+   - REALISTIC CASE: [Kurze Beschreibung]
+   - WORST CASE: [Kurze Beschreibung]
+
+4. "summary": KURZE, MOTIVIERENDE Zusammenfassung (MAXIMAL 3-4 Sätze) der wichtigsten Erkenntnisse und nächsten Schritte
+
+ANTWORTE NUR MIT VALIDEM JSON, KEINEM ANDEREN TEXT:
+{{
+  "plausibility": "...",
+  "tips": "...",
+  "scenario_analysis": "...",
+  "summary": "..."
+}}"""
+        
+        try:
+            if self.provider == 'openai':
+                # Use JSON mode for OpenAI
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": self._get_system_prompt() + "\n\nWICHTIG: Antworte IMMER mit validem JSON-Format. Keine zusätzlichen Erklärungen außerhalb des JSON."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.7,
+                    max_tokens=2000,  # Больше токенов для объединенного ответа
+                    response_format={"type": "json_object"}
+                )
+                result_text = response.choices[0].message.content.strip()
+            else:  # Gemini
+                full_prompt = f"""{self._get_system_prompt()}
+
+WICHTIG: Antworte IMMER mit validem JSON-Format. Keine zusätzlichen Erklärungen außerhalb des JSON.
+
+{prompt}"""
+                generation_config = genai.types.GenerationConfig(
+                    max_output_tokens=2000,
+                    temperature=0.7,
+                    response_mime_type="application/json"
+                )
+                response = self.model.generate_content(full_prompt, generation_config=generation_config)
+                result_text = response.text.strip() if response.text else ""
+            
+            # Parse JSON response
+            if not result_text:
+                print("⚠️ Leere Antwort von LLM")
+                return None
+            
+            # Try to extract JSON if there's extra text
+            if result_text.startswith('```json'):
+                result_text = result_text[7:]
+            if result_text.startswith('```'):
+                result_text = result_text[3:]
+            if result_text.endswith('```'):
+                result_text = result_text[:-3]
+            result_text = result_text.strip()
+            
+            # Parse JSON
+            try:
+                result_dict = json.loads(result_text)
+            except json.JSONDecodeError as e:
+                print(f"❌ JSON-Parse-Fehler: {e}")
+                print(f"📝 Antwort-Text (erste 500 Zeichen): {result_text[:500]}")
+                return None
+            
+            # Validate structure
+            required_keys = ['plausibility', 'tips', 'scenario_analysis', 'summary']
+            for key in required_keys:
+                if key not in result_dict:
+                    print(f"⚠️ Fehlendes Feld im JSON: {key}")
+                    result_dict[key] = None
+                elif not result_dict[key] or len(str(result_dict[key]).strip()) < 20:
+                    print(f"⚠️ Feld {key} zu kurz oder leer")
+                    result_dict[key] = None
+            
+            print(f"✅ Unified Analysis erhalten: {len(result_text)} Zeichen")
+            return result_dict
+            
+        except Exception as e:
+            error_msg = str(e)
+            print(f"❌ Fehler bei Unified Analysis: {error_msg}")
+            import traceback
+            traceback.print_exc()
+            if "429" in error_msg or "quota" in error_msg.lower() or "insufficient_quota" in error_msg.lower():
+                print("⚠️ API-Quota überschritten - keine LLM-Analyse verfügbar")
+            return None
+    
+    def generate_complete_analysis(self, finance_data: ParsedFinanceData,
+                                   user_goal: Optional[str] = None,
+                                   months_ahead: int = 12,
+                                   user_profession: Optional[str] = None,
+                                   user_about_me: Optional[str] = None,
+                                   user_financial_goals: Optional[str] = None,
+                                   quiz_profile: Optional[Dict[str, str]] = None) -> Optional[Dict]:
+        """
+        Generiert KOMPLETTE Analyse in einem einzigen LLM-Aufruf:
+        - Szenario-Daten (best/realistic/worst с конкретными доходами/расходами)
+        - Plausibilitätsanalyse
+        - Tipps
+        - Szenario-Analyse
+        - Zusammenfassung
+        
+        Returns:
+            Dictionary mit:
+            - 'scenarios': {best_case, realistic_case, worst_case} с данными
+            - 'plausibility': текст
+            - 'tips': текст
+            - 'scenario_analysis': текст
+            - 'summary': текст
+            Oder None bei Fehler
+        """
+        goal_context = f"\n\nWICHTIG: Der Benutzer hat folgendes Ziel/Frage: {user_goal}" if user_goal else ""
+        
+        user_context = ""
+        if user_profession:
+            user_context += f"\nBeruf/Profession: {user_profession}"
+        if user_about_me:
+            user_context += f"\nPersönliche Informationen: {user_about_me}"
+        if user_financial_goals:
+            user_context += f"\nFinanzielle Ziele: {user_financial_goals}"
+        quiz_context = self._format_quiz_profile(quiz_profile)
+        if quiz_context:
+            user_context += quiz_context
+        
+        monthly_income = finance_data.monthly_averages['income']
+        monthly_expenses = finance_data.monthly_averages['expenses']
+        monthly_savings = monthly_income - monthly_expenses
+        savings_rate = (monthly_savings / monthly_income * 100) if monthly_income > 0 else 0
+        top_categories = sorted(finance_data.categories.items(), key=lambda x: x[1], reverse=True)[:5]
+        category_details = ', '.join([f"{cat}: {amt:.0f} €" for cat, amt in top_categories]) or "keine"
+        
+        prompt = f"""Erstelle eine KOMPLETTE Finanzanalyse in einem einzigen JSON-Format.{goal_context}{user_context}
+
+AKTUELLE FINANZDATEN:
+- Monatliches Einkommen (Durchschnitt): {monthly_income:.2f} €
+- Monatliche Ausgaben (Durchschnitt): {monthly_expenses:.2f} €
+- Monatliche Ersparnis: {monthly_savings:.2f} € (Sparrate {savings_rate:.1f}%)
+- Top-Ausgabenkategorien: {category_details}
+- Zeitraum: {months_ahead} Monate
+
+AUFGABE - Erstelle JSON mit ALLEN folgenden Feldern:
+
+1. "scenarios": Drei Szenarien mit KONKRETEN Finanzdaten (nicht Prozente!)
+   - "best_case": {{"base_monthly_income": <Zahl>, "base_monthly_expenses": <Zahl>, "expense_breakdown": {{"Kategorie": <Zahl>, ...}}, "income_sources": {{"Quelle": <Zahl>, ...}}, "description": "..."}}
+   - "realistic_case": {{...}}
+   - "worst_case": {{...}}
+   - WICHTIG: Berücksichtige das Benutzerziel! (z.B. "Studium in Australien" → Miete in Australien, Versicherung, Flugkosten)
+
+2. "plausibility": GENAU zwei Absätze (je 3-4 Sätze, gesamt 90-120 Wörter)
+   - Im ersten Absatz: Welches Szenario ist am plausibelsten und warum? Verknüpfe es direkt mit dem Ziel.
+   - Im zweiten Absatz: Welche Risiken und Chancen folgen daraus?
+   - Fließtext ohne Überschriften, ohne "Absatz 1/2", ohne Nummerierung. Maximal 1-2 Emojis.
+
+3. "tips": Strukturierte Tipps
+   - Kurzes Fazit (2 Sätze) – Kann das Ziel erreicht werden?
+   - Direkte Antwort auf die Frage (1 Satz + 2 Bulletpoints mit ✓/⚠️/💡)
+   - GENAU 6 Tipps im Format „Emoji Titel – 1 kurzer Satz“ (wichtigste zuerst, direkt auf das Ziel bezogen)
+   - Insgesamt maximal 220 Wörter
+
+4. "scenario_analysis": KURZE Analyse aller 3 Szenarien (MAXIMAL 2-3 Sätze pro Szenario)
+   - BEST CASE: [Kurze Beschreibung]
+   - REALISTIC CASE: [Kurze Beschreibung]
+   - WORST CASE: [Kurze Beschreibung]
+
+5. "summary": KURZE, MOTIVIERENDE Zusammenfassung (MAXIMAL 3-4 Sätze) der wichtigsten Erkenntnisse und nächsten Schritte
+
+ANTWORTE NUR MIT VALIDEM JSON, KEINEM ANDEREN TEXT:
+{{
+  "scenarios": {{
+    "best_case": {{...}},
+    "realistic_case": {{...}},
+    "worst_case": {{...}}
+  }},
+  "plausibility": "...",
+  "tips": "...",
+  "scenario_analysis": "...",
+  "summary": "..."
+}}"""
+        
+        try:
+            if self.provider == 'openai':
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": self._get_system_prompt() + "\n\nWICHTIG: Antworte IMMER mit validem JSON-Format. Gib konkrete Zahlen für Szenarien, keine Prozente."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.7,
+                    max_tokens=4000,  # Больше токенов для полного ответа
+                    response_format={"type": "json_object"}
+                )
+                result_text = response.choices[0].message.content.strip()
+            else:  # Gemini
+                full_prompt = f"""{self._get_system_prompt()}
+
+WICHTIG: Antworte IMMER mit validem JSON-Format. Gib konkrete Zahlen für Szenarien, keine Prozente.
+
+{prompt}"""
+                generation_config = genai.types.GenerationConfig(
+                    max_output_tokens=4000,
+                    temperature=0.7,
+                    response_mime_type="application/json"
+                )
+                response = self.model.generate_content(full_prompt, generation_config=generation_config)
+                result_text = response.text.strip() if response.text else ""
+            
+            if not result_text:
+                print("⚠️ Leere Antwort von LLM für komplette Analyse")
+                return None
+            
+            # Try to extract JSON if there's extra text
+            if result_text.startswith('```json'):
+                result_text = result_text[7:]
+            if result_text.startswith('```'):
+                result_text = result_text[3:]
+            if result_text.endswith('```'):
+                result_text = result_text[:-3]
+            result_text = result_text.strip()
+            
+            try:
+                result_dict = json.loads(result_text)
+            except json.JSONDecodeError as e:
+                print(f"❌ JSON-Parse-Fehler bei kompletter Analyse: {e}")
+                print(f"📝 Antwort-Text (erste 500 Zeichen): {result_text[:500]}")
+                return None
+            
+            # Validate structure
+            if 'scenarios' not in result_dict:
+                print("⚠️ Fehlendes Feld 'scenarios'")
+                return None
+            
+            scenarios = result_dict['scenarios']
+            required_scenarios = ['best_case', 'realistic_case', 'worst_case']
+            for scenario_key in required_scenarios:
+                if scenario_key not in scenarios:
+                    print(f"⚠️ Fehlendes Szenario: {scenario_key}")
+                    return None
+                scenario = scenarios[scenario_key]
+                required_fields = ['base_monthly_income', 'base_monthly_expenses', 'expense_breakdown', 'income_sources', 'description']
+                for field in required_fields:
+                    if field not in scenario:
+                        print(f"⚠️ Fehlendes Feld {field} in {scenario_key}")
+                        return None
+            
+            # Validate other fields
+            required_fields = ['plausibility', 'tips', 'scenario_analysis', 'summary']
+            for field in required_fields:
+                if field not in result_dict:
+                    print(f"⚠️ Fehlendes Feld: {field}")
+                    result_dict[field] = None
+                elif not result_dict[field] or len(str(result_dict[field]).strip()) < 20:
+                    print(f"⚠️ Feld {field} zu kurz oder leer")
+                    result_dict[field] = None
+            
+            print(f"✅ Komplette Analyse erhalten: {len(result_text)} Zeichen")
+            return result_dict
+            
+        except Exception as e:
+            error_msg = str(e)
+            print(f"❌ Fehler bei kompletter Analyse: {error_msg}")
+            import traceback
+            traceback.print_exc()
+            if "429" in error_msg or "quota" in error_msg.lower() or "insufficient_quota" in error_msg.lower():
+                print("⚠️ API-Quota überschritten - keine LLM-Analyse verfügbar")
+            return None
 

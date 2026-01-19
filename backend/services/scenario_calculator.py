@@ -49,18 +49,25 @@ class ScenarioCalculator:
     def __init__(self, months_ahead: int = 12):
         self.months_ahead = months_ahead
     
-    def calculate_all_scenarios(self, data: ParsedFinanceData, user_goal: Optional[str] = None, quiz_profile: Optional[Dict] = None) -> Dict[str, ScenarioResult]:
+    def calculate_all_scenarios(self, data: ParsedFinanceData, user_goal: Optional[str] = None, quiz_profile: Optional[Dict] = None, ai_scenario_data: Optional[Dict] = None) -> Dict[str, ScenarioResult]:
         """
         Berechnet alle drei Szenarien basierend auf historischen Daten, Benutzerzielen und Quiz-Profil.
+        Wenn ai_scenario_data vorhanden ist, werden diese Daten verwendet statt einfacher Prozente.
         
         Args:
             data: ParsedFinanceData aus CSV-Parser
             user_goal: Optional user goal/query to incorporate into calculations
             quiz_profile: Optional quiz profile with user financial data (income, expenses, etc.)
+            ai_scenario_data: Optional AI-generated scenario data with concrete income/expense numbers
             
         Returns:
             Dictionary mit allen Szenarien
         """
+        # Если есть данные от AI, используем их
+        if ai_scenario_data:
+            return self._calculate_scenarios_from_ai_data(data, ai_scenario_data)
+        
+        # Иначе используем старую логику с процентами
         # Historische Daten analysieren
         historical_stats = self._analyze_historical_data(data)
         
@@ -79,6 +86,113 @@ class ScenarioCalculator:
             'worst_case': self._calculate_worst_case(historical_stats, goal_info, quiz_info),
             'realistic_case': self._calculate_realistic_case(historical_stats, goal_info, quiz_info)
         }
+        
+        return scenarios
+    
+    def _calculate_scenarios_from_ai_data(self, data: ParsedFinanceData, ai_scenario_data: Dict) -> Dict[str, ScenarioResult]:
+        """
+        Berechnet Szenarien basierend auf konkreten Daten von AI.
+        
+        Args:
+            data: ParsedFinanceData aus CSV-Parser
+            ai_scenario_data: Dictionary mit best_case, realistic_case, worst_case
+                            Jedes Szenario enthält:
+                            - base_monthly_income: float
+                            - base_monthly_expenses: float
+                            - expense_breakdown: Dict[str, float]
+                            - income_sources: Dict[str, float]
+                            - description: str
+        """
+        scenarios = {}
+        start_date = datetime.now()
+        current_balance = data.net_balance
+        
+        for scenario_key in ['best_case', 'realistic_case', 'worst_case']:
+            if scenario_key not in ai_scenario_data:
+                continue
+            
+            ai_data = ai_scenario_data[scenario_key]
+            base_income = float(ai_data.get('base_monthly_income', 0))
+            base_expenses = float(ai_data.get('base_monthly_expenses', 0))
+            description = ai_data.get('description', '')
+            expense_breakdown = ai_data.get('expense_breakdown', {})
+            income_sources = ai_data.get('income_sources', {})
+            
+            # Если данные некорректны, используем исторические данные как fallback
+            if base_income <= 0 or base_expenses <= 0:
+                historical_stats = self._analyze_historical_data(data)
+                base_income = historical_stats.get('avg_income', 1000)
+                base_expenses = historical_stats.get('avg_expenses', base_income * 0.7)
+            
+            projections = []
+            cumulative_balance = current_balance
+            
+            # Seed für reproduzierbare Variationen (basierend auf scenario_key)
+            seed_value = hash(scenario_key) % 10000
+            np.random.seed(seed_value)
+            
+            # Генерируем проекции на каждый месяц
+            for i in range(self.months_ahead):
+                month_date = start_date + relativedelta(months=i)
+                month_str = month_date.strftime('%Y-%m')
+                
+                # Используем базовые значения от AI, можно добавить небольшие вариации
+                # Для реалистичности добавляем небольшое случайное отклонение (±5%)
+                income_variation = np.random.normal(1.0, 0.05) if i > 0 else 1.0
+                expense_variation = np.random.normal(1.0, 0.05) if i > 0 else 1.0
+                
+                projected_income = base_income * income_variation
+                projected_expenses = base_expenses * expense_variation
+                
+                # Обеспечиваем, что расходы не превышают доходы слишком сильно
+                if projected_expenses >= projected_income * 0.98:
+                    projected_expenses = projected_income * 0.85
+                
+                projected_balance = projected_income - projected_expenses
+                cumulative_balance += projected_balance
+                
+                projections.append(ScenarioProjection(
+                    month=month_str,
+                    projected_income=round(projected_income, 2),
+                    projected_expenses=round(projected_expenses, 2),
+                    projected_balance=round(projected_balance, 2),
+                    cumulative_balance=round(cumulative_balance, 2)
+                ))
+            
+            monthly_savings = np.mean([p.projected_balance for p in projections]) if projections else 0
+            
+            # Генерируем risk_factors и opportunities на основе данных
+            risk_factors = []
+            opportunities = []
+            
+            if monthly_savings < 0:
+                risk_factors.append('Negatives Cashflow - Ausgaben übersteigen Einnahmen')
+            if base_expenses > base_income * 0.9:
+                risk_factors.append('Sehr hohe Ausgabenquote - wenig Spielraum für Ersparnisse')
+            
+            if monthly_savings > 0:
+                opportunities.append(f'Monatliche Ersparnisse von {monthly_savings:.2f} € möglich')
+            if len(income_sources) > 1:
+                opportunities.append('Mehrere Einkommensquellen - gute Diversifizierung')
+            
+            # Определяем title на основе типа сценария
+            if scenario_key == 'best_case':
+                title = 'Best Case Szenario'
+            elif scenario_key == 'worst_case':
+                title = 'Worst Case Szenario'
+            else:
+                title = 'Realistisches Szenario'
+            
+            scenarios[scenario_key] = ScenarioResult(
+                scenario_type=scenario_key,
+                title=title,
+                description=description if description else f'Basierend auf AI-generierten Daten für {scenario_key}',
+                projections=projections,
+                final_balance=round(cumulative_balance, 2),
+                monthly_savings=round(monthly_savings, 2),
+                risk_factors=risk_factors,
+                opportunities=opportunities
+            )
         
         return scenarios
     

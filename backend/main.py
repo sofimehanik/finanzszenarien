@@ -703,41 +703,29 @@ async def analyze_finances(
                 detail=f"Fehler beim Parsen der CSV: {str(e)}"
             )
         
-        # Szenarien berechnen (mit Benutzerziel und Perioden-Parameter)
-        try:
-            # Validate months_ahead (1, 6, 12, or 24)
-            valid_months = [1, 6, 12, 24]
-            if months_ahead not in valid_months:
-                months_ahead = 12  # Default to 12 if invalid
-            
-            print(f"🧮 Berechne Szenarien basierend auf Benutzerziel für {months_ahead} Monate...")
-            
-            # Get quiz profile if user is authenticated
-            quiz_profile = None
-            if current_user and current_user.quiz_profile:
-                try:
-                    quiz_profile = json.loads(current_user.quiz_profile)
-                    print(f"📋 Quiz-Profil gefunden: {len(quiz_profile)} Felder")
-                except Exception as e:
-                    print(f"⚠️ Fehler beim Parsen des Quiz-Profils: {str(e)}")
-                    quiz_profile = None
-            
-            # Create calculator instance with specified months_ahead
-            calculator = ScenarioCalculator(months_ahead=months_ahead)
-            scenarios = calculator.calculate_all_scenarios(finance_data, user_goal, quiz_profile)
-            print("✅ Szenarien berechnet")
-        except Exception as e:
-            print(f"❌ Szenario-Berechnung Fehler: {str(e)}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"Fehler bei Szenario-Berechnung: {str(e)}"
-            )
+        # Validate months_ahead (1, 6, 12, or 24)
+        valid_months = [1, 6, 12, 24]
+        if months_ahead not in valid_months:
+            months_ahead = 12  # Default to 12 if invalid
         
-        # LLM-Analysen (optional, mit Benutzerziel)
-        scenario_summaries = {
-            key: build_local_scenario_summary(scenario, user_goal)
-            for key, scenario in scenarios.items()
-        }
+        # Get quiz profile if user is authenticated
+        quiz_profile = None
+        if current_user and current_user.quiz_profile:
+            try:
+                quiz_profile = json.loads(current_user.quiz_profile)
+                print(f"📋 Quiz-Profil gefunden: {len(quiz_profile)} Felder")
+            except Exception as e:
+                print(f"⚠️ Fehler beim Parsen des Quiz-Profils: {str(e)}")
+                quiz_profile = None
+        
+        # Get user context for personalization
+        user_profession = current_user.profession if current_user else None
+        user_about_me = current_user.about_me if current_user else None
+        user_financial_goals = current_user.financial_goals if current_user else None
+        
+        # LLM: Generiere KOMPLETTE Analyse (Szenarien + Analyse) in einem Request
+        scenarios = None
+        scenario_summaries = {}
         plausibility_analysis = None
         tips = None
         scenario_analysis = None
@@ -746,97 +734,101 @@ async def analyze_finances(
         print(f"🔍 LLM Service Status: {'verfügbar' if llm_service else 'nicht verfügbar'}")
         
         if llm_service:
-            print("✅ LLM Service verfügbar, starte Analysen...")
+            print("✅ LLM Service verfügbar, starte KOMPLETTE Analyse (ein einziger Request)...")
             try:
-                print("🤖 Starte LLM-Analysen (parallel)...")
-                import concurrent.futures
+                # Единый запрос для всего: сценарии + анализ
+                complete_result = llm_service.generate_complete_analysis(
+                    finance_data, user_goal, months_ahead,
+                    user_profession, user_about_me, user_financial_goals, quiz_profile
+                )
                 
-                # Parallele Ausführung aller LLM-Anfragen für bessere Performance
-                with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-                    # Alle Anfragen parallel starten
-                    futures = {}
+                if complete_result and 'scenarios' in complete_result:
+                    # Используем данные от AI для расчета сценариев
+                    ai_scenario_data = complete_result['scenarios']
                     
-                    # Get user context for personalization
-                    user_profession = current_user.profession if current_user else None
-                    user_about_me = current_user.about_me if current_user else None
-                    user_financial_goals = current_user.financial_goals if current_user else None
-                    quiz_profile = None
-                    if current_user and current_user.quiz_profile:
-                        try:
-                            quiz_profile = json.loads(current_user.quiz_profile)
-                        except Exception:
-                            quiz_profile = None
+                    # Berechne Szenarien mit AI-Daten
+                    try:
+                        print(f"🧮 Berechne Szenarien basierend auf AI-Daten für {months_ahead} Monate...")
+                        calculator = ScenarioCalculator(months_ahead=months_ahead)
+                        scenarios = calculator.calculate_all_scenarios(
+                            finance_data, user_goal, quiz_profile, ai_scenario_data=ai_scenario_data
+                        )
+                        print("✅ Szenarien berechnet mit AI-Daten")
+                    except Exception as e:
+                        print(f"❌ Szenario-Berechnung Fehler: {str(e)}")
+                        # Fallback: используем старую логику
+                        calculator = ScenarioCalculator(months_ahead=months_ahead)
+                        scenarios = calculator.calculate_all_scenarios(finance_data, user_goal, quiz_profile)
+                        print("✅ Szenarien berechnet (Fallback ohne AI-Daten)")
                     
-                    # Plausibilitätsanalyse
-                    print("  - Starte Plausibilitätsanalyse...")
-                    futures['plausibility'] = executor.submit(
-                        llm_service.generate_plausibility_analysis,
-                        scenarios, finance_data, user_goal, user_profession, user_about_me, user_financial_goals, quiz_profile
-                    )
+                    # Генерируем summaries для сценариев
+                    scenario_summaries = {
+                        key: build_local_scenario_summary(scenario, user_goal)
+                        for key, scenario in scenarios.items()
+                    }
                     
-                    # Tipps
-                    print("  - Starte Tipps-Generierung...")
-                    futures['tips'] = executor.submit(
-                        llm_service.generate_tips,
-                        finance_data, user_goal, user_profession, user_about_me, user_financial_goals, quiz_profile
-                    )
+                    # Извлекаем анализ
+                    plausibility_analysis = complete_result.get('plausibility')
+                    tips = complete_result.get('tips')
+                    scenario_analysis = complete_result.get('scenario_analysis')
+                    summary = complete_result.get('summary')
                     
-                    # Szenario-Analyse (kurze Analyse aller 3 Szenarien)
-                    print("  - Starte Szenario-Analyse...")
-                    futures['scenario_analysis'] = executor.submit(
-                        llm_service.generate_scenario_analysis,
-                        scenarios, finance_data, user_goal, user_profession, user_about_me, user_financial_goals, quiz_profile
-                    )
-                    
-                    # Zusammenfassung/Итоги
-                    print("  - Starte Zusammenfassung...")
-                    futures['summary'] = executor.submit(
-                        llm_service.generate_summary,
-                        scenarios, finance_data, user_goal, user_profession, user_about_me, user_financial_goals, quiz_profile
-                    )
-                    
-                    # Ergebnisse sammeln (warten auf alle)
-                    print("  - Warte auf alle LLM-Antworten...")
-                    plausibility_analysis = futures['plausibility'].result()
+                    print(f"  ✅ Komplette Analyse erhalten")
                     if plausibility_analysis:
-                        print(f"  ✅ Plausibilitätsanalyse erhalten ({len(plausibility_analysis)} Zeichen)")
-                        print(f"  📝 Erste 100 Zeichen: {plausibility_analysis[:100]}...")
-                    else:
-                        print(f"  ⚠️ Plausibilitätsanalyse nicht verfügbar (LLM-Fehler oder Quota überschritten)")
-                    
-                    tips = futures['tips'].result()
+                        print(f"    - Plausibilitätsanalyse: {len(plausibility_analysis)} Zeichen")
                     if tips:
-                        print(f"  ✅ Tipps erhalten ({len(tips)} Zeichen)")
-                        print(f"  📝 Erste 100 Zeichen: {tips[:100]}...")
-                    else:
-                        print(f"  ⚠️ Tipps nicht verfügbar (LLM-Fehler oder Quota überschritten)")
-                    
-                    scenario_analysis = futures['scenario_analysis'].result()
+                        print(f"    - Tipps: {len(tips)} Zeichen")
                     if scenario_analysis:
-                        print(f"  ✅ Szenario-Analyse erhalten ({len(scenario_analysis)} Zeichen)")
-                    else:
-                        print(f"  ⚠️ Szenario-Analyse nicht verfügbar")
-                    
-                    summary = futures['summary'].result()
+                        print(f"    - Szenario-Analyse: {len(scenario_analysis)} Zeichen")
                     if summary:
-                        print(f"  ✅ Zusammenfassung erhalten ({len(summary)} Zeichen)")
-                    else:
-                        print(f"  ⚠️ Zusammenfassung nicht verfügbar")
+                        print(f"    - Zusammenfassung: {len(summary)} Zeichen")
+                else:
+                    print("  ⚠️ Komplette Analyse nicht verfügbar (LLM-Fehler oder Quota überschritten)")
+                    # Fallback: используем старую логику без AI
+                    calculator = ScenarioCalculator(months_ahead=months_ahead)
+                    scenarios = calculator.calculate_all_scenarios(finance_data, user_goal, quiz_profile)
+                    scenario_summaries = {
+                        key: build_local_scenario_summary(scenario, user_goal)
+                        for key, scenario in scenarios.items()
+                    }
+                    plausibility_analysis = None
+                    tips = None
+                    scenario_analysis = None
+                    summary = None
                 
-                print("✅ Alle LLM-Analysen abgeschlossen")
+                print("✅ Komplette LLM-Analyse abgeschlossen")
             except Exception as e:
                 print(f"⚠️ LLM-Fehler (wird ignoriert): {str(e)}")
                 import traceback
                 traceback.print_exc()
-                # Stelle sicher, dass None-Werte gesetzt sind
-                if plausibility_analysis is None:
-                    plausibility_analysis = None
-                if tips is None:
-                    tips = None
-                if 'scenario_analysis' not in locals():
-                    scenario_analysis = None
-                if 'summary' not in locals():
-                    summary = None
+                # Fallback: используем старую логику без AI
+                calculator = ScenarioCalculator(months_ahead=months_ahead)
+                scenarios = calculator.calculate_all_scenarios(finance_data, user_goal, quiz_profile)
+                scenario_summaries = {
+                    key: build_local_scenario_summary(scenario, user_goal)
+                    for key, scenario in scenarios.items()
+                }
+                plausibility_analysis = None
+                tips = None
+                scenario_analysis = None
+                summary = None
+        else:
+            # Kein LLM verfügbar - используем старую логику
+            print("⚠️ LLM nicht verfügbar, verwende Standard-Szenarien...")
+            try:
+                calculator = ScenarioCalculator(months_ahead=months_ahead)
+                scenarios = calculator.calculate_all_scenarios(finance_data, user_goal, quiz_profile)
+                scenario_summaries = {
+                    key: build_local_scenario_summary(scenario, user_goal)
+                    for key, scenario in scenarios.items()
+                }
+                print("✅ Szenarien berechnet (ohne AI)")
+            except Exception as e:
+                print(f"❌ Szenario-Berechnung Fehler: {str(e)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Fehler bei Szenario-Berechnung: {str(e)}"
+                )
         
         # Response zusammenstellen
         print("📦 Erstelle Response...")
@@ -898,6 +890,7 @@ async def analyze_finances(
         print("✅ Response erstellt, sende an Client...")
         
         # Save to history if user is authenticated
+        # Prevent duplicate entries: check if same analysis was saved in last 5 seconds
         if current_user:
             try:
                 # Generate title from user goal or use default
@@ -905,18 +898,32 @@ async def analyze_finances(
                 if len(title) > 100:
                     title = title[:100]
                 
-                history_entry = AnalysisHistory(
-                    user_id=current_user.id,
-                    title=title,
-                    user_goal=user_goal,
-                    analysis_data=json.dumps(response)
-                )
-                db.add(history_entry)
-                db.commit()
-                db.refresh(history_entry)
-                print(f"✅ Analysis saved to history: ID {history_entry.id}")
+                # Check for recent duplicate (same user, same goal, within last 5 seconds)
+                from datetime import timedelta
+                recent_cutoff = datetime.utcnow() - timedelta(seconds=5)
+                recent_duplicate = db.query(AnalysisHistory).filter(
+                    AnalysisHistory.user_id == current_user.id,
+                    AnalysisHistory.user_goal == user_goal,
+                    AnalysisHistory.created_at >= recent_cutoff
+                ).first()
+                
+                if recent_duplicate:
+                    print(f"⚠️ Duplicate analysis detected (ID {recent_duplicate.id}), skipping history save to prevent duplicates")
+                else:
+                    history_entry = AnalysisHistory(
+                        user_id=current_user.id,
+                        title=title,
+                        user_goal=user_goal,
+                        analysis_data=json.dumps(response)
+                    )
+                    db.add(history_entry)
+                    db.commit()
+                    db.refresh(history_entry)
+                    print(f"✅ Analysis saved to history: ID {history_entry.id}")
             except Exception as e:
                 print(f"⚠️ Failed to save analysis to history: {str(e)}")
+                import traceback
+                traceback.print_exc()
                 # Don't fail the request if history save fails
         
         return JSONResponse(content=response)
